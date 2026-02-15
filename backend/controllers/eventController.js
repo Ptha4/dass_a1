@@ -11,6 +11,7 @@ const createEvent = asyncHandler(async (req, res) => {
         eventDescription,
         eventType,
         eligibility,
+        location,
         registrationDeadline,
         eventStartDate,
         eventEndDate,
@@ -18,7 +19,7 @@ const createEvent = asyncHandler(async (req, res) => {
         registrationFee,
         eventTags,
         registrationForm,
-        items // Added items
+        items
     } = req.body;
 
     // Input Validation
@@ -83,16 +84,17 @@ const createEvent = asyncHandler(async (req, res) => {
         eventDescription,
         eventType,
         eligibility,
+        location: location || 'TBD',
         registrationDeadline,
         eventStartDate,
         eventEndDate,
         registrationLimit: registrationLimit ? Number(registrationLimit) : undefined,
         registrationFee: registrationFee ? Number(registrationFee) : undefined,
-        organizerId: req.user.id, // Organizer ID from JWT payload
+        organizerId: req.user.id,
         eventTags: Array.isArray(eventTags) ? eventTags : (eventTags ? String(eventTags).split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []),
         registrationForm: registrationForm || [],
-        status: 'draft', // Default status
-        items: eventType === 'merch' ? items : [] // Assign items only for merch events
+        status: 'draft',
+        items: eventType === 'merch' ? items : [],
     });
 
     const createdEvent = await event.save();
@@ -131,6 +133,7 @@ const updateEvent = asyncHandler(async (req, res) => {
         eventDescription,
         eventType,
         eligibility,
+        location,
         registrationDeadline,
         eventStartDate,
         eventEndDate,
@@ -139,7 +142,7 @@ const updateEvent = asyncHandler(async (req, res) => {
         eventTags,
         status,
         registrationForm,
-        items // Added items
+        items
     } = req.body;
 
     const event = await Event.findById(req.params.id);
@@ -192,6 +195,7 @@ const updateEvent = asyncHandler(async (req, res) => {
             event.eventDescription = eventDescription || event.eventDescription;
             event.eventType = eventType || event.eventType;
             event.eligibility = eligibility || event.eligibility;
+            event.location = location || event.location;
             event.registrationDeadline = registrationDeadline || event.registrationDeadline;
             event.eventStartDate = eventStartDate || event.eventStartDate;
             event.eventEndDate = eventEndDate || event.eventEndDate;
@@ -199,7 +203,7 @@ const updateEvent = asyncHandler(async (req, res) => {
             event.registrationFee = registrationFee || event.registrationFee;
             event.eventTags = eventTags || event.eventTags;
             event.registrationForm = registrationForm || event.registrationForm;
-            event.items = items || event.items; // Allow items to be updated in draft stage
+            event.items = items || event.items;
         } else if (event.status === 'ongoing' || event.status === 'completed' || event.status === 'closed') {
             res.status(400);
             throw new Error('Cannot edit event details in ongoing, completed, or closed status.');

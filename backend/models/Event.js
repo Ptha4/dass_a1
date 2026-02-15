@@ -13,37 +13,69 @@ const ItemSchema = new mongoose.Schema({
 });
 
 const EventSchema = new mongoose.Schema({
-    name: {
+    eventName: {
         type: String,
-        required: true
+        required: true,
     },
-    description: {
+    eventDescription: {
         type: String,
-        required: true
-    },
-    eventStartDate: { // Changed from 'date'
-        type: Date,
-        required: true
-    },
-    eventEndDate: {   // New field
-        type: Date,
-        required: true
-    },
-    location: {
-        type: String,
-        required: true
-    },
-    organizerId: { // Changed from 'organizer'
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        required: true,
     },
     eventType: {
         type: String,
-        enum: ['merch', 'ticket', 'rsvp'],
-        required: true
+        enum: ['normal', 'merch', 'ticket', 'rsvp'],
+        default: 'normal',
     },
-    items: [ItemSchema] // New field for merch items
-}, { timestamps: true });
+    eligibility: {
+        type: String,
+    },
+    location: {
+        type: String,
+        required: true,
+        default: 'TBD',
+    },
+    registrationDeadline: {
+        type: Date,
+        required: true,
+    },
+    eventStartDate: {
+        type: Date,
+        required: true,
+    },
+    eventEndDate: {
+        type: Date,
+        required: true,
+    },
+    registrationLimit: {
+        type: Number,
+    },
+    registrationFee: {
+        type: Number,
+        default: 0,
+    },
+    organizerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    eventTags: {
+        type: [String],
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'published', 'ongoing', 'completed', 'closed'],
+        default: 'draft',
+    },
+    registrationForm: {
+        type: Array,
+        default: [],
+    },
+    items: {
+        type: [ItemSchema],
+        default: [],
+    },
+}, {
+    timestamps: true,
+});
 
 module.exports = mongoose.model('Event', EventSchema);
