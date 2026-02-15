@@ -7,8 +7,10 @@ import OrganiserDashboard from './components/OrganiserDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ParticipantOnboarding from './components/ParticipantOnboarding'; // Import ParticipantOnboarding
-import EventDashboard from './components/EventDashboard'; // Import EventDashboard
-import CreateEvent from './components/CreateEvent'; // Import CreateEvent
+import EventDashboard from './components/EventDashboard';
+import EventDetail from './components/EventDetail';
+import EditEvent from './components/EditEvent';
+import CreateEvent from './components/CreateEvent';
 import FormBuilder from './components/FormBuilder'; // Import FormBuilder
 import authService from './services/authService';
 import './App.css'; // Assuming you have some basic styling
@@ -98,9 +100,15 @@ function App() {
                             </ProtectedRoute>
                         }
                     />
+                    <Route path="/events" element={<EventDashboard />} />
+                    <Route path="/events/:id" element={<EventDetail />} />
                     <Route
-                        path="/events"
-                        element={<EventDashboard />}
+                        path="/events/:id/edit"
+                        element={
+                            <ProtectedRoute roles={['organiser']}>
+                                <EditEvent />
+                            </ProtectedRoute>
+                        }
                     />
                     <Route
                         path="/create-event"

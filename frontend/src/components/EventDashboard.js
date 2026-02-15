@@ -54,7 +54,7 @@ const EventDashboard = () => {
                             <p>{event.eventDescription}</p>
                             <p>Type: {event.eventType}</p>
                             <p>Status: {event.status}</p>
-                            <p>Organizer: {event.organizerId ? event.organizerId.username : 'N/A'}</p>
+                            <p>Organizer: {event.organizerId ? (event.organizerId.firstName && event.organizerId.lastName ? `${event.organizerId.firstName} ${event.organizerId.lastName}` : event.organizerId.email) : 'N/A'}</p>
                             <p>Starts: {new Date(event.eventStartDate).toLocaleDateString()}</p>
                             <p>Ends: {new Date(event.eventEndDate).toLocaleDateString()}</p>
                             <p>Registration Deadline: {new Date(event.registrationDeadline).toLocaleDateString()}</p>

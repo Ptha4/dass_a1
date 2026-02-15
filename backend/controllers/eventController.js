@@ -85,7 +85,7 @@ const createEvent = asyncHandler(async (req, res) => {
 // @route   GET /api/events
 // @access  Public
 const getEvents = asyncHandler(async (req, res) => {
-    const events = await Event.find({}).populate('organizerId', 'username email');
+    const events = await Event.find({}).populate('organizerId', 'firstName lastName email');
     res.json(events);
 });
 
@@ -93,13 +93,14 @@ const getEvents = asyncHandler(async (req, res) => {
 // @route   GET /api/events/:id
 // @access  Public
 const getEventById = asyncHandler(async (req, res) => {
-    const event = await Event.findById(req.params.id).populate('organizerId', 'username email');
+    const event = await Event.findById(req.params.id).populate('organizerId', 'firstName lastName email');
 
     if (event) {
         res.json(event);
     } else {
-        res.status(404);
-        throw new Error('Event not found');
+        const err = new Error('Event not found');
+        err.status = 404;
+        throw err;
     }
 });
 
@@ -209,12 +210,14 @@ const updateEventStatus = asyncHandler(async (req, res) => {
             const updatedEvent = await event.save();
             res.json(updatedEvent);
         } else {
-            res.status(400);
-            throw new Error('Invalid status provided');
+            const err = new Error('Invalid status provided');
+            err.status = 400;
+            throw err;
         }
     } else {
-        res.status(404);
-        throw new Error('Event not found');
+        const err = new Error('Event not found');
+        err.status = 404;
+        throw err;
     }
 });
 
