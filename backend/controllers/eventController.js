@@ -17,7 +17,8 @@ const createEvent = asyncHandler(async (req, res) => {
         registrationLimit,
         registrationFee,
         eventTags,
-        registrationForm
+        registrationForm,
+        items // Added items
     } = req.body;
 
     // Input Validation
@@ -54,6 +55,22 @@ const createEvent = asyncHandler(async (req, res) => {
         throw err;
     }
 
+    // Validate items for merch events
+    if (eventType === 'merch') {
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            const err = new Error('Merch events must include at least one item with itemName and stockQuantity.');
+            err.status = 400;
+            throw err;
+        }
+        for (const item of items) {
+            if (!item.itemName || typeof item.itemName !== 'string' || !item.stockQuantity || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0) {
+                const err = new Error('Each item in a merch event must have a valid itemName (string) and a non-negative stockQuantity (number).');
+                err.status = 400;
+                throw err;
+            }
+        }
+    }
+
     // Check if user is an organizer (JWT payload uses isOrganiser, not role)
     if (!req.user.isOrganiser) {
         const err = new Error('Not authorized to create an event. Only organizers can create events.');
@@ -75,6 +92,7 @@ const createEvent = asyncHandler(async (req, res) => {
         eventTags: Array.isArray(eventTags) ? eventTags : (eventTags ? String(eventTags).split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []),
         registrationForm: registrationForm || [],
         status: 'draft', // Default status
+        items: eventType === 'merch' ? items : [] // Assign items only for merch events
     });
 
     const createdEvent = await event.save();
@@ -120,7 +138,8 @@ const updateEvent = asyncHandler(async (req, res) => {
         registrationFee,
         eventTags,
         status,
-        registrationForm
+        registrationForm,
+        items // Added items
     } = req.body;
 
     const event = await Event.findById(req.params.id);
@@ -132,6 +151,23 @@ const updateEvent = asyncHandler(async (req, res) => {
             err.status = 403;
             throw err;
         }
+
+        // Validate items for merch events if provided in the update
+        if (eventType === 'merch' && items) {
+            if (!Array.isArray(items) || items.length === 0) {
+                const err = new Error('Merch events must include at least one item with itemName and stockQuantity.');
+                err.status = 400;
+                throw err;
+            }
+            for (const item of items) {
+                if (!item.itemName || typeof item.itemName !== 'string' || !item.stockQuantity || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0) {
+                    const err = new Error('Each item in a merch event must have a valid itemName (string) and a non-negative stockQuantity (number).');
+                    err.status = 400;
+                    throw err;
+                }
+            }
+        }
+
 
         // Event flow logic
         if (event.status === 'published') {
@@ -163,6 +199,7 @@ const updateEvent = asyncHandler(async (req, res) => {
             event.registrationFee = registrationFee || event.registrationFee;
             event.eventTags = eventTags || event.eventTags;
             event.registrationForm = registrationForm || event.registrationForm;
+            event.items = items || event.items; // Allow items to be updated in draft stage
         } else if (event.status === 'ongoing' || event.status === 'completed' || event.status === 'closed') {
             res.status(400);
             throw new Error('Cannot edit event details in ongoing, completed, or closed status.');

@@ -24,6 +24,7 @@ const EditEvent = () => {
         registrationLimit: '',
         registrationFee: '',
         eventTags: '',
+        items: [], // New state for merch items
     });
     const [customFormFields, setCustomFormFields] = useState([]);
     const [errors, setErrors] = useState({});
@@ -42,6 +43,7 @@ const EditEvent = () => {
         registrationLimit,
         registrationFee,
         eventTags,
+        items, // Destructure items
     } = formData;
 
     useEffect(() => {
@@ -69,6 +71,7 @@ const EditEvent = () => {
                     registrationLimit: event.registrationLimit != null ? String(event.registrationLimit) : '',
                     registrationFee: event.registrationFee != null ? String(event.registrationFee) : '',
                     eventTags: Array.isArray(event.eventTags) ? event.eventTags.join(', ') : (event.eventTags || ''),
+                    items: Array.isArray(event.items) ? event.items : [], // Populate items
                 });
                 setCustomFormFields(Array.isArray(event.registrationForm) ? event.registrationForm : []);
             } catch (err) {
@@ -85,6 +88,22 @@ const EditEvent = () => {
         if (errors[e.target.name]) {
             setErrors(prev => ({ ...prev, [e.target.name]: null }));
         }
+    };
+
+    // Handle changes for merch items
+    const handleItemChange = (index, e) => {
+        const newItems = [...items];
+        newItems[index][e.target.name] = e.target.value;
+        setFormData({ ...formData, items: newItems });
+    };
+
+    const handleAddItem = () => {
+        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0 }] });
+    };
+
+    const handleRemoveItem = (index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setFormData({ ...formData, items: newItems });
     };
 
     const handleCustomFormChange = (fields) => {
@@ -117,6 +136,22 @@ const EditEvent = () => {
             newErrors.registrationFee = 'Registration Fee must be a number.';
         }
 
+        // Merch items validation
+        if (eventType === 'merch') {
+            if (!items || items.length === 0) {
+                newErrors.items = 'Merch events must include at least one item.';
+            } else {
+                items.forEach((item, index) => {
+                    if (!item.itemName || item.itemName.trim() === '') {
+                        newErrors[`itemName-${index}`] = `Item ${index + 1}: Name is required.`;
+                    }
+                    if (isNaN(Number(item.stockQuantity)) || Number(item.stockQuantity) < 0) {
+                        newErrors[`stockQuantity-${index}`] = `Item ${index + 1}: Stock quantity must be a non-negative number.`;
+                    }
+                });
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -147,6 +182,7 @@ const EditEvent = () => {
                 registrationFee: registrationFee ? Number(registrationFee) : undefined,
                 eventTags: eventTags ? eventTags.split(',').map(t => t.trim()).filter(Boolean) : [],
                 registrationForm: customFormFields,
+                items: eventType === 'merch' ? items.map(item => ({ ...item, stockQuantity: Number(item.stockQuantity) })) : [], // Send items for merch events
             };
 
             await eventService.updateEvent(id, eventData, token);
@@ -194,6 +230,39 @@ const EditEvent = () => {
                         <option value="merch">Merch</option>
                     </select>
                 </div>
+
+                {eventType === 'merch' && (
+                    <div className="merch-items-section">
+                        <h3>Merch Items</h3>
+                        {errors.items && <p className="error-message">{errors.items}</p>}
+                        {items.map((item, index) => (
+                            <div key={index} className="merch-item-input-group">
+                                <input
+                                    type="text"
+                                    name="itemName"
+                                    placeholder="Item Name"
+                                    value={item.itemName}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    required
+                                />
+                                {errors[`itemName-${index}`] && <p className="error-message">{errors[`itemName-${index}`]}</p>}
+                                <input
+                                    type="number"
+                                    name="stockQuantity"
+                                    placeholder="Stock Quantity"
+                                    value={item.stockQuantity}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    min="0"
+                                    required
+                                />
+                                {errors[`stockQuantity-${index}`] && <p className="error-message">{errors[`stockQuantity-${index}`]}</p>}
+                                <button type="button" onClick={() => handleRemoveItem(index)}>Remove</button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={handleAddItem}>Add Item</button>
+                    </div>
+                )}
+
                 <div className="form-group">
                     <label htmlFor="eligibility">Eligibility</label>
                     <input type="text" id="eligibility" name="eligibility" value={eligibility} onChange={onChange} />

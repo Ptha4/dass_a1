@@ -16,6 +16,8 @@ const CreateEvent = () => {
         registrationLimit: '',
         registrationFee: '',
         eventTags: '',
+        location: '', // Added location
+        items: [], // New state for merch items
     });
     const [customFormFields, setCustomFormFields] = useState([]); // New state for custom form fields
     const [errors, setErrors] = useState({}); // State for validation errors
@@ -33,6 +35,8 @@ const CreateEvent = () => {
         registrationLimit,
         registrationFee,
         eventTags,
+        location, // Destructure location
+        items, // Destructure items
     } = formData;
 
     const onChange = (e) => {
@@ -41,6 +45,22 @@ const CreateEvent = () => {
         if (errors[e.target.name]) {
             setErrors(prevErrors => ({ ...prevErrors, [e.target.name]: null }));
         }
+    };
+
+    // Handle changes for merch items
+    const handleItemChange = (index, e) => {
+        const newItems = [...items];
+        newItems[index][e.target.name] = e.target.value;
+        setFormData({ ...formData, items: newItems });
+    };
+
+    const handleAddItem = () => {
+        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0 }] });
+    };
+
+    const handleRemoveItem = (index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setFormData({ ...formData, items: newItems });
     };
 
     // Callback function to receive form fields from FormBuilder
@@ -52,6 +72,7 @@ const CreateEvent = () => {
         const newErrors = {};
         if (!eventName) newErrors.eventName = 'Event Name is required.';
         if (!eventDescription) newErrors.eventDescription = 'Event Description is required.';
+        if (!location) newErrors.location = 'Location is required.'; // Added validation for location
         if (!registrationDeadline) newErrors.registrationDeadline = 'Registration Deadline is required.';
         if (!eventStartDate) newErrors.eventStartDate = 'Event Start Date is required.';
         if (!eventEndDate) newErrors.eventEndDate = 'Event End Date is required.';
@@ -74,6 +95,22 @@ const CreateEvent = () => {
         }
         if (registrationFee && isNaN(Number(registrationFee))) {
             newErrors.registrationFee = 'Registration Fee must be a number.';
+        }
+
+        // Merch items validation
+        if (eventType === 'merch') {
+            if (!items || items.length === 0) {
+                newErrors.items = 'Merch events must include at least one item.';
+            } else {
+                items.forEach((item, index) => {
+                    if (!item.itemName || item.itemName.trim() === '') {
+                        newErrors[`itemName-${index}`] = `Item ${index + 1}: Name is required.`;
+                    }
+                    if (isNaN(Number(item.stockQuantity)) || Number(item.stockQuantity) < 0) {
+                        newErrors[`stockQuantity-${index}`] = `Item ${index + 1}: Stock quantity must be a non-negative number.`;
+                    }
+                });
+            }
         }
 
         setErrors(newErrors);
@@ -106,6 +143,7 @@ const CreateEvent = () => {
                 registrationFee: registrationFee ? Number(registrationFee) : undefined,
                 eventTags: eventTags || '', // Backend expects string and will split
                 registrationForm: customFormFields, // Backend expects registrationForm
+                items: eventType === 'merch' ? items.map(item => ({ ...item, stockQuantity: Number(item.stockQuantity) })) : [], // Send items for merch events
             };
 
             await eventService.createEvent(eventData, token);
@@ -154,6 +192,52 @@ const CreateEvent = () => {
                         <option value="merch">Merch</option>
                     </select>
                 </div>
+
+                <div className="form-group">
+                    <label htmlFor="location">Location</label>
+                    <input
+                        type="text"
+                        id="location"
+                        name="location"
+                        value={location}
+                        onChange={onChange}
+                        required
+                    />
+                    {errors.location && <p className="error-message">{errors.location}</p>}
+                </div>
+
+                {eventType === 'merch' && (
+                    <div className="merch-items-section">
+                        <h3>Merch Items</h3>
+                        {errors.items && <p className="error-message">{errors.items}</p>}
+                        {items.map((item, index) => (
+                            <div key={index} className="merch-item-input-group">
+                                <input
+                                    type="text"
+                                    name="itemName"
+                                    placeholder="Item Name"
+                                    value={item.itemName}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    required
+                                />
+                                {errors[`itemName-${index}`] && <p className="error-message">{errors[`itemName-${index}`]}</p>}
+                                <input
+                                    type="number"
+                                    name="stockQuantity"
+                                    placeholder="Stock Quantity"
+                                    value={item.stockQuantity}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    min="0"
+                                    required
+                                />
+                                {errors[`stockQuantity-${index}`] && <p className="error-message">{errors[`stockQuantity-${index}`]}</p>}
+                                <button type="button" onClick={() => handleRemoveItem(index)}>Remove</button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={handleAddItem}>Add Item</button>
+                    </div>
+                )}
+
                 <div className="form-group">
                     <label htmlFor="eligibility">Eligibility</label>
                     <input
