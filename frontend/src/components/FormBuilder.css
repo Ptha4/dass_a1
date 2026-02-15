@@ -1,0 +1,174 @@
+.form-builder-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+  font-family: Arial, sans-serif;
+}
+
+.form-builder-container h2,
+.form-builder-container h3 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.field-creator,
+.form-preview {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group select,
+.form-group textarea {
+  width: calc(100% - 22px); /* Account for padding and border */
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+
+.form-group select {
+  width: 100%;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 10px;
+  width: auto;
+}
+
+.add-field-button {
+  display: block;
+  width: 100%;
+  padding: 10px 15px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.add-field-button:hover {
+  background-color: #218838;
+}
+
+.field-list {
+  margin-top: 15px;
+}
+
+.form-field-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e0e0e0;
+  background-color: #fff;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.field-details {
+  flex-grow: 1;
+}
+
+.field-label {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.field-type {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.field-preview-input {
+  margin-top: 8px;
+}
+
+.field-preview-input input,
+.field-preview-input textarea,
+.field-preview-input select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background-color: #f0f0f0;
+  color: #888;
+}
+
+.field-preview-input div { /* For checkbox options */
+  margin-bottom: 5px;
+}
+
+.field-actions button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  margin-left: 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.field-actions button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.field-actions button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.remove-field-button {
+  background-color: #dc3545;
+}
+
+.remove-field-button:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.save-form-button {
+  display: block;
+  width: 100%;
+  padding: 12px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+  margin-top: 20px;
+}
+
+.save-form-button:hover {
+  background-color: #0056b3;
+}

@@ -1,0 +1,25 @@
+const express = require('express');
+const {
+    createEvent,
+    getEvents,
+    getEventById,
+    updateEvent,
+    updateEventStatus
+} = require('../controllers/eventController');
+const {
+    protect
+} = require('../middleware/auth'); // Assuming 'protect' middleware exists for authentication
+const router = express.Router();
+
+router.route('/')
+    .post(protect, createEvent) // Only authenticated organizers can create events
+    .get(getEvents); // Anyone can view all events
+
+router.route('/:id')
+    .get(getEventById) // Anyone can view a single event
+    .put(protect, updateEvent); // Only authenticated organizers can update their events
+
+router.route('/:id/status')
+    .put(protect, updateEventStatus); // Only authenticated organizers can update their event status
+
+module.exports = router;
