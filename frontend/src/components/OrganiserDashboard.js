@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
 import authService from '../services/authService';
+import PaymentApproval from './PaymentApproval';
 import './OrganiserDashboard.css';
 
 const OrganiserDashboard = () => {
@@ -42,10 +43,15 @@ const OrganiserDashboard = () => {
         if (!token) return;
         setAnalyticsLoading(true);
         try {
+            console.log('Fetching analytics data...');
             const data = await eventService.getEventAnalytics(token);
+            console.log('Analytics data received:', data);
             setAnalytics(data);
         } catch (err) {
-            console.error(err);
+            console.error('Analytics fetch error:', err);
+            console.error('Error response:', err.response);
+            console.error('Error status:', err.response?.status);
+            console.error('Error data:', err.response?.data);
             setAnalytics(null);
         } finally {
             setAnalyticsLoading(false);
@@ -173,6 +179,12 @@ const OrganiserDashboard = () => {
                     onClick={() => setActiveTab('analytics')}
                 >
                     Analytics
+                </button>
+                <button
+                    className={`tab-btn ${activeTab === 'approvals' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('approvals')}
+                >
+                    Payment Approvals
                 </button>
                 <button
                     className={`tab-btn ${activeTab === 'drafts' ? 'active' : ''}`}
@@ -314,6 +326,12 @@ const OrganiserDashboard = () => {
                             <p>Failed to load analytics data.</p>
                         </div>
                     )}
+                </div>
+            )}
+
+            {activeTab === 'approvals' && (
+                <div className="dashboard-section">
+                    <PaymentApproval />
                 </div>
             )}
 

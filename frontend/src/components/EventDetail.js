@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
 import authService from '../services/authService';
+import PaymentProofUpload from './PaymentProofUpload';
 
 const EventDetail = () => {
     const { id } = useParams();
@@ -16,6 +17,8 @@ const EventDetail = () => {
     const [registrationLoading, setRegistrationLoading] = useState(false);
     const [registrationError, setRegistrationError] = useState(null);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [currentRegistration, setCurrentRegistration] = useState(null); // Track current registration for payment proof
+    const [showPaymentProof, setShowPaymentProof] = useState(false);
     const [merchQuantities, setMerchQuantities] = useState({}); // { itemId: quantity }
 
     const currentUser = authService.getCurrentUser();
@@ -142,14 +145,35 @@ const EventDetail = () => {
         setRegistrationSuccess(false);
 
         try {
-            await eventService.registerForEvent(event._id, purchasedItems, token);
-            setRegistrationSuccess(true);
-            navigate('/participant-dashboard');
+            const registration = await eventService.registerForEvent(event._id, purchasedItems, token);
+            setCurrentRegistration(registration);
+            
+            // For merch events, show payment proof upload
+            if (event.eventType === 'merch') {
+                setShowPaymentProof(true);
+                setRegistrationSuccess(true);
+            } else {
+                // For normal events, navigate to dashboard
+                setRegistrationSuccess(true);
+                navigate('/participant-dashboard');
+            }
         } catch (err) {
             setRegistrationError(err.response?.data?.message || err.message || 'Failed to purchase merchandise.');
         } finally {
             setRegistrationLoading(false);
         }
+    };
+
+    const handlePaymentProofUploaded = () => {
+        setShowPaymentProof(false);
+        setCurrentRegistration(null);
+        // Reset form
+        const initialQuantities = {};
+        event.items.forEach(item => {
+            initialQuantities[item._id] = 0;
+        });
+        setMerchQuantities(initialQuantities);
+        setRegistrationSuccess(false);
     };
 
 
@@ -239,7 +263,15 @@ const EventDetail = () => {
                 {isRegistrationOpen && currentUser && !isOrganizer && meetsEligibility && (
                     <div className="registration-purchase-section" style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
                         {registrationError && <p className="error-message">{registrationError}</p>}
-                        {registrationSuccess && <p className="success-message">Operation successful! Redirecting to your tickets...</p>}
+                        {registrationSuccess && !showPaymentProof && <p className="success-message">Operation successful! Redirecting to your tickets...</p>}
+
+                        {/* Show payment proof upload for merch events */}
+                        {showPaymentProof && currentRegistration && (
+                            <PaymentProofUpload 
+                                registrationId={currentRegistration._id} 
+                                onUploadSuccess={handlePaymentProofUploaded}
+                            />
+                        )}
 
                         {isNormalEvent && (
                             <>

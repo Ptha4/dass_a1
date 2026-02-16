@@ -1,0 +1,319 @@
+.payment-approval {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.payment-approval-header {
+    margin-bottom: 2rem;
+}
+
+.payment-approval-header h3 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+.payment-approval-header p {
+    margin: 0;
+    color: #666;
+}
+
+.loading-container,
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #721c24;
+}
+
+.approvals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.approval-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.approval-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.event-info h4 {
+    margin: 0 0 0.25rem 0;
+    color: #333;
+    font-size: 1.2rem;
+}
+
+.event-type {
+    background: #6c757d;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.pending {
+    background: #ffc107;
+    color: #333;
+}
+
+.approval-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.customer-info h5,
+.order-info h5,
+.payment-proof h5 {
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.customer-info p,
+.order-info p {
+    margin: 0.5rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.items-list {
+    margin-bottom: 1rem;
+}
+
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.item-row:last-child {
+    border-bottom: none;
+}
+
+.total-cost {
+    text-align: right;
+    padding-top: 0.5rem;
+    border-top: 2px solid #333;
+    color: #333;
+}
+
+.proof-image-container {
+    text-align: center;
+}
+
+.proof-image {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.proof-image:hover {
+    transform: scale(1.05);
+}
+
+.image-hint {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.8rem;
+    color: #666;
+    font-style: italic;
+}
+
+.approval-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #f0f0f0;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-approve {
+    background: #28a745;
+    color: white;
+}
+
+.btn-approve:hover:not(:disabled) {
+    background: #218838;
+}
+
+.btn-reject {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-reject:hover:not(:disabled) {
+    background: #c82333;
+}
+
+.btn-cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-cancel:hover:not(:disabled) {
+    background: #5a6268;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.rejection-modal {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.rejection-modal h4 {
+    margin: 0 0 1rem 0;
+    color: #333;
+}
+
+.rejection-modal p {
+    margin: 0.5rem 0;
+    color: #666;
+}
+
+.form-group {
+    margin: 1.5rem 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 1rem;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .payment-approval {
+        padding: 1rem;
+    }
+    
+    .approval-content {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .approval-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .approval-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .modal-actions {
+        flex-direction: column-reverse;
+    }
+    
+    .proof-image {
+        max-width: 100%;
+    }
+}

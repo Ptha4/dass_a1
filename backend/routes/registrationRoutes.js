@@ -1,9 +1,52 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const router = express.Router();
-const { registerEvent, getMyTickets } = require('../controllers/registrationController');
+const { 
+    registerEvent, 
+    getMyTickets, 
+    uploadPaymentProof, 
+    getPendingApprovals, 
+    approvePayment 
+} = require('../controllers/registrationController');
 const { protect } = require('../middleware/auth'); // Assuming you have an auth middleware
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/payment-proofs/');
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files are allowed'), false);
+    }
+};
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    }
+});
 
 router.post('/:eventId', protect, registerEvent);
 router.get('/my-tickets', protect, getMyTickets);
+
+// Payment proof upload
+router.post('/:registrationId/payment-proof', protect, upload.single('paymentProof'), uploadPaymentProof);
+
+// Organizer payment approval endpoints
+router.get('/pending-approvals', protect, getPendingApprovals);
+router.patch('/:registrationId/approve-payment', protect, approvePayment);
 
 module.exports = router;

@@ -113,12 +113,73 @@ const getMyTickets = async (token) => {
 
 // Get organizer's event analytics
 const getEventAnalytics = async (token) => {
+    console.log('=== EVENT SERVICE ANALYTICS DEBUG ===');
+    console.log('API URL:', API_URL + 'analytics');
+    console.log('Token provided:', token ? 'Token exists' : 'No token');
+    
     const config = {
         headers: {
             'x-auth-token': token,
         },
     };
-    const response = await axios.get(API_URL + 'analytics', config);
+    
+    console.log('Request config:', config);
+    
+    try {
+        console.log('Making GET request to:', API_URL + 'analytics');
+        const response = await axios.get(API_URL + 'analytics', config);
+        console.log('Analytics response received:', response);
+        console.log('Analytics response data:', response.data);
+        console.log('=== END EVENT SERVICE ANALYTICS DEBUG ===');
+        return response.data;
+    } catch (error) {
+        console.error('=== EVENT SERVICE ANALYTICS ERROR ===');
+        console.error('Axios error:', error);
+        console.error('Error response:', error.response);
+        console.error('Error status:', error.response?.status);
+        console.error('Error data:', error.response?.data);
+        console.error('Request URL:', API_URL + 'analytics');
+        console.error('=== END EVENT SERVICE ANALYTICS ERROR ===');
+        throw error;
+    }
+};
+
+// Upload payment proof for merchandise registration
+const uploadPaymentProof = async (registrationId, file, token) => {
+    const formData = new FormData();
+    formData.append('paymentProof', file);
+    
+    const config = {
+        headers: {
+            'x-auth-token': token,
+            'Content-Type': 'multipart/form-data',
+        },
+    };
+    
+    const response = await axios.post(`${REGISTRATION_API_URL}${registrationId}/payment-proof`, formData, config);
+    return response.data;
+};
+
+// Get pending payment approvals for organizer
+const getPendingApprovals = async (token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.get(`${REGISTRATION_API_URL}pending-approvals`, config);
+    return response.data;
+};
+
+// Approve or reject payment
+const approvePayment = async (registrationId, approved, rejectionReason, token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.patch(`${REGISTRATION_API_URL}${registrationId}/approve-payment`, 
+        { approved, rejectionReason }, config);
     return response.data;
 };
 
@@ -133,6 +194,9 @@ const eventService = {
     registerForEvent,
     getMyTickets,
     getEventAnalytics,
+    uploadPaymentProof,
+    getPendingApprovals,
+    approvePayment,
 };
 
 export default eventService;

@@ -7,11 +7,16 @@ const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
 const eventRoutes = require('./routes/eventRoutes'); // Import event routes
 const registrationRoutes = require('./routes/registrationRoutes'); // Import registration routes
+const path = require('path');
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(express.json());
 
 // Connect to MongoDB

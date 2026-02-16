@@ -274,7 +274,218 @@ const getMyTickets = asyncHandler(async (req, res) => {
     res.json(registrations);
 });
 
+// @desc    Upload payment proof for merchandise registration
+// @route   POST /api/register/:registrationId/payment-proof
+// @access  Private
+const uploadPaymentProof = asyncHandler(async (req, res) => {
+    const registrationId = req.params.registrationId;
+    
+    if (!req.file) {
+        res.status(400);
+        throw new Error('No payment proof image uploaded');
+    }
+
+    const registration = await Registration.findById(registrationId)
+        .populate('event');
+
+    if (!registration) {
+        res.status(404);
+        throw new Error('Registration not found');
+    }
+
+    // Check if registration belongs to the user
+    if (registration.user.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('Not authorized to upload payment proof for this registration');
+    }
+
+    // Check if this is a merch event
+    if (registration.event.eventType !== 'merch') {
+        res.status(400);
+        throw new Error('Payment proof is only required for merchandise events');
+    }
+
+    // Check if payment proof has already been uploaded
+    if (registration.paymentProof?.proofImage) {
+        res.status(400);
+        throw new Error('Payment proof has already been uploaded');
+    }
+
+    // Update registration with payment proof
+    registration.paymentProof = {
+        proofImage: `/uploads/payment-proofs/${req.file.filename}`,
+        uploadedAt: new Date()
+    };
+    
+    registration.status = 'payment_pending';
+    await registration.save();
+
+    res.json({
+        message: 'Payment proof uploaded successfully. Waiting for approval.',
+        registration
+    });
+});
+
+// @desc    Get all pending payment approvals for organizer
+// @route   GET /api/register/pending-approvals
+// @access  Private/Organizer
+const getPendingApprovals = asyncHandler(async (req, res) => {
+    if (!req.user.isOrganiser) {
+        res.status(403);
+        throw new Error('Not authorized. Only organizers can view pending approvals');
+    }
+
+    // Get all registrations for this organizer's events that have payment pending
+    const registrations = await Registration.find({
+        status: 'payment_pending',
+        'paymentProof.proofImage': { $exists: true }
+    })
+    .populate('event', 'eventName eventType')
+    .populate('user', 'firstName lastName email')
+    .sort({ 'paymentProof.uploadedAt': -1 });
+
+    res.json(registrations);
+});
+
+// @desc    Approve or reject payment
+// @route   PATCH /api/register/:registrationId/approve-payment
+// @access  Private/Organizer
+const approvePayment = asyncHandler(async (req, res) => {
+    const registrationId = req.params.registrationId;
+    const { approved, rejectionReason } = req.body;
+
+    if (typeof approved !== 'boolean') {
+        res.status(400);
+        throw new Error('Approved status must be true or false');
+    }
+
+    const registration = await Registration.findById(registrationId)
+        .populate('event')
+        .populate('user');
+
+    if (!registration) {
+        res.status(404);
+        throw new Error('Registration not found');
+    }
+
+    // Check if registration belongs to organizer's event
+    if (registration.event.organizerId.toString() !== req.user.id) {
+        res.status(403);
+        throw new Error('Not authorized to approve payment for this registration');
+    }
+
+    // Check if payment is still pending
+    if (registration.status !== 'payment_pending') {
+        res.status(400);
+        throw new Error('Payment has already been processed');
+    }
+
+    if (approved) {
+        // Approve payment
+        registration.status = 'payment_approved';
+        registration.paymentProof.approvedAt = new Date();
+        registration.paymentProof.approvedBy = req.user.id;
+        registration.paymentProof.rejectionReason = undefined;
+
+        // Decrement stock for each purchased item
+        for (const purchasedItem of registration.purchasedItems) {
+            const eventItem = registration.event.items.find(
+                item => item.itemName === purchasedItem.item.itemName
+            );
+            
+            if (eventItem) {
+                eventItem.stockQuantity -= purchasedItem.quantity;
+                if (eventItem.stockQuantity < 0) {
+                    eventItem.stockQuantity = 0;
+                }
+            }
+        }
+        
+        await registration.event.save();
+
+        // Generate ticket and QR code
+        const ticketId = `TICKET-${uuidv4()}`;
+        const userDetails = await User.findById(registration.user._id);
+        
+        const qrCodeContent = {
+            ticketId,
+            event: registration.event.eventName,
+            eventType: registration.event.eventType,
+            purchasedItems: registration.purchasedItems.map(item => ({ 
+                name: purchasedItem.item.itemName, 
+                qty: purchasedItem.quantity 
+            }))
+        };
+        
+        const qrCodeDataURL = await generateQrCodeDataURL(qrCodeContent);
+
+        const ticket = new Ticket({
+            registration: registration._id,
+            event: registration.event._id,
+            user: registration.user._id,
+            ticketId,
+            qrCodeData: qrCodeDataURL,
+            eventName: registration.event.eventName,
+            eventDate: registration.event.eventStartDate,
+            eventLocation: registration.event.location,
+            participantName: `${userDetails.firstName} ${userDetails.lastName}`,
+            participantEmail: userDetails.email,
+            purchasedItemsDetails: registration.purchasedItems.map(item => ({ 
+                itemName: purchasedItem.item.itemName, 
+                quantity: purchasedItem.quantity 
+            }))
+        });
+        
+        await ticket.save();
+        registration.ticket = ticket._id;
+
+        // Send confirmation email
+        const emailSubject = `Payment Approved - ${registration.event.eventName}`;
+        const emailContent = `
+            <h2>Payment Approved! 🎉</h2>
+            <p>Dear ${userDetails.firstName},</p>
+            <p>Your payment for <strong>${registration.event.eventName}</strong> has been approved.</p>
+            <p>Your ticket ID: <strong>${ticketId}</strong></p>
+            <p>You can now access your ticket with the QR code in your dashboard.</p>
+            <p>Thank you for your purchase!</p>
+        `;
+        
+        await sendEmail(userDetails.email, emailSubject, emailContent);
+
+    } else {
+        // Reject payment
+        registration.status = 'payment_rejected';
+        registration.paymentProof.rejectedAt = new Date();
+        registration.paymentProof.rejectionReason = rejectionReason || 'Payment proof could not be verified';
+        registration.paymentProof.approvedAt = undefined;
+        registration.paymentProof.approvedBy = undefined;
+
+        // Send rejection email
+        const userDetails = await User.findById(registration.user._id);
+        const emailSubject = `Payment Rejected - ${registration.event.eventName}`;
+        const emailContent = `
+            <h2>Payment Rejected</h2>
+            <p>Dear ${userDetails.firstName},</p>
+            <p>Your payment proof for <strong>${registration.event.eventName}</strong> has been rejected.</p>
+            <p>Reason: ${registration.paymentProof.rejectionReason}</p>
+            <p>Please upload a valid payment proof or contact the event organizer for assistance.</p>
+        `;
+        
+        await sendEmail(userDetails.email, emailSubject, emailContent);
+    }
+
+    await registration.save();
+
+    res.json({
+        message: approved ? 'Payment approved successfully' : 'Payment rejected',
+        registration
+    });
+});
+
 module.exports = {
     registerEvent,
-    getMyTickets
+    getMyTickets,
+    uploadPaymentProof,
+    getPendingApprovals,
+    approvePayment
 };

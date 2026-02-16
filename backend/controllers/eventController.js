@@ -7,88 +7,115 @@ const User = require('../models/User'); // Assuming User model is needed for org
 // @route   GET /api/events/analytics
 // @access  Private/Organizer
 const getEventAnalytics = asyncHandler(async (req, res) => {
+    console.log('=== BACKEND ANALYTICS DEBUG ===');
+    console.log('User:', req.user);
+    console.log('Is Organizer:', req.user.isOrganiser);
+    
     if (!req.user.isOrganiser) {
+        console.log('Access denied: User is not an organizer');
         const err = new Error('Not authorized. Only organizers can access analytics.');
         err.status = 403;
         throw err;
     }
 
     const organizerId = req.user.id;
+    console.log('Organizer ID:', organizerId);
 
-    // Get all events for this organizer
-    const events = await Event.find({ organizerId });
-    
-    // Calculate analytics
-    const analytics = {
-        totalEvents: events.length,
-        draftEvents: events.filter(e => e.status === 'draft').length,
-        publishedEvents: events.filter(e => e.status === 'published').length,
-        ongoingEvents: events.filter(e => e.status === 'ongoing').length,
-        completedEvents: events.filter(e => e.status === 'completed').length,
-        closedEvents: events.filter(e => e.status === 'closed').length,
-        totalRegistrations: 0,
-        totalRevenue: 0,
-        merchSales: 0,
-        normalEventRegistrations: 0
-    };
-
-    // Get registration data for all events
-    const eventIds = events.map(e => e._id);
-    const registrations = await Registration.find({ 
-        event: { $in: eventIds },
-        status: 'confirmed'
-    }).populate('event');
-
-    // Calculate registration and revenue stats
-    registrations.forEach(reg => {
-        analytics.totalRegistrations++;
+    try {
+        // Get all events for this organizer
+        const events = await Event.find({ organizerId });
+        console.log('Found events:', events.length);
         
-        if (reg.event.eventType === 'merch') {
-            // Calculate merch revenue
-            if (reg.purchasedItems && reg.purchasedItems.length > 0) {
-                reg.purchasedItems.forEach(item => {
-                    analytics.merchSales += (item.quantity * item.price);
-                });
-            }
-        } else {
-            // Calculate normal event revenue
-            analytics.normalEventRegistrations++;
-            if (reg.event.registrationFee) {
-                analytics.totalRevenue += reg.event.registrationFee;
-            }
-        }
-    });
+        // Calculate analytics
+        const analytics = {
+            totalEvents: events.length,
+            draftEvents: events.filter(e => e.status === 'draft').length,
+            publishedEvents: events.filter(e => e.status === 'published').length,
+            ongoingEvents: events.filter(e => e.status === 'ongoing').length,
+            completedEvents: events.filter(e => e.status === 'completed').length,
+            closedEvents: events.filter(e => e.status === 'closed').length,
+            totalRegistrations: 0,
+            totalRevenue: 0,
+            merchSales: 0,
+            normalEventRegistrations: 0
+        };
 
-    // Add merch sales to total revenue
-    analytics.totalRevenue += analytics.merchSales;
+        console.log('Initial analytics:', analytics);
 
-    // Get recent events with stats
-    const recentEvents = await Event.find({ organizerId })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate({
-            path: 'registrations',
-            match: { status: 'confirmed' },
-            select: '_id'
+        // Get registration data for all events
+        const eventIds = events.map(e => e._id);
+        console.log('Event IDs for registration lookup:', eventIds);
+        
+        const registrations = await Registration.find({ 
+            event: { $in: eventIds },
+            status: 'confirmed'
+        }).populate('event');
+        
+        console.log('Found registrations:', registrations.length);
+
+        // Calculate registration and revenue stats
+        registrations.forEach(reg => {
+            analytics.totalRegistrations++;
+            
+            if (reg.event.eventType === 'merch') {
+                // Calculate merch revenue
+                if (reg.purchasedItems && reg.purchasedItems.length > 0) {
+                    reg.purchasedItems.forEach(item => {
+                        analytics.merchSales += (item.quantity * item.price);
+                    });
+                }
+            } else {
+                // Calculate normal event revenue
+                analytics.normalEventRegistrations++;
+                if (reg.event.registrationFee) {
+                    analytics.totalRevenue += reg.event.registrationFee;
+                }
+            }
         });
 
-    const eventsWithStats = recentEvents.map(event => ({
-        _id: event._id,
-        eventName: event.eventName,
-        eventType: event.eventType,
-        status: event.status,
-        eventStartDate: event.eventStartDate,
-        eventEndDate: event.eventEndDate,
-        registrationCount: event.registrations ? event.registrations.length : 0,
-        registrationLimit: event.registrationLimit,
-        registrationFee: event.registrationFee,
-        createdAt: event.createdAt
-    }));
+        // Add merch sales to total revenue
+        analytics.totalRevenue += analytics.merchSales;
 
-    res.json({
-        summary: analytics,
-        recentEvents: eventsWithStats
-    });
+        console.log('Final analytics:', analytics);
+
+        // Get recent events with stats
+        const recentEvents = await Event.find({ organizerId })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .populate({
+                path: 'registrations',
+                match: { status: 'confirmed' },
+                select: '_id'
+            });
+
+        console.log('Recent events found:', recentEvents.length);
+
+        const eventsWithStats = recentEvents.map(event => ({
+            _id: event._id,
+            eventName: event.eventName,
+            eventType: event.eventType,
+            status: event.status,
+            eventStartDate: event.eventStartDate,
+            eventEndDate: event.eventEndDate,
+            registrationCount: event.registrations ? event.registrations.length : 0,
+            registrationLimit: event.registrationLimit,
+            registrationFee: event.registrationFee,
+            createdAt: event.createdAt
+        }));
+
+        const responseData = {
+            summary: analytics,
+            recentEvents: eventsWithStats
+        };
+
+        console.log('Sending analytics response:', responseData);
+        console.log('=== END BACKEND ANALYTICS DEBUG ===');
+        
+        res.json(responseData);
+    } catch (error) {
+        console.error('Analytics calculation error:', error);
+        throw error;
+    }
 });
 
 // @desc    Create new event
