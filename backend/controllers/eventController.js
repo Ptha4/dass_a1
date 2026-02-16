@@ -3,6 +3,94 @@ const Event = require('../models/Event');
 const Registration = require('../models/Registration');
 const User = require('../models/User'); // Assuming User model is needed for organizer role check
 
+// @desc    Get organizer's events analytics
+// @route   GET /api/events/analytics
+// @access  Private/Organizer
+const getEventAnalytics = asyncHandler(async (req, res) => {
+    if (!req.user.isOrganiser) {
+        const err = new Error('Not authorized. Only organizers can access analytics.');
+        err.status = 403;
+        throw err;
+    }
+
+    const organizerId = req.user.id;
+
+    // Get all events for this organizer
+    const events = await Event.find({ organizerId });
+    
+    // Calculate analytics
+    const analytics = {
+        totalEvents: events.length,
+        draftEvents: events.filter(e => e.status === 'draft').length,
+        publishedEvents: events.filter(e => e.status === 'published').length,
+        ongoingEvents: events.filter(e => e.status === 'ongoing').length,
+        completedEvents: events.filter(e => e.status === 'completed').length,
+        closedEvents: events.filter(e => e.status === 'closed').length,
+        totalRegistrations: 0,
+        totalRevenue: 0,
+        merchSales: 0,
+        normalEventRegistrations: 0
+    };
+
+    // Get registration data for all events
+    const eventIds = events.map(e => e._id);
+    const registrations = await Registration.find({ 
+        event: { $in: eventIds },
+        status: 'confirmed'
+    }).populate('event');
+
+    // Calculate registration and revenue stats
+    registrations.forEach(reg => {
+        analytics.totalRegistrations++;
+        
+        if (reg.event.eventType === 'merch') {
+            // Calculate merch revenue
+            if (reg.purchasedItems && reg.purchasedItems.length > 0) {
+                reg.purchasedItems.forEach(item => {
+                    analytics.merchSales += (item.quantity * item.price);
+                });
+            }
+        } else {
+            // Calculate normal event revenue
+            analytics.normalEventRegistrations++;
+            if (reg.event.registrationFee) {
+                analytics.totalRevenue += reg.event.registrationFee;
+            }
+        }
+    });
+
+    // Add merch sales to total revenue
+    analytics.totalRevenue += analytics.merchSales;
+
+    // Get recent events with stats
+    const recentEvents = await Event.find({ organizerId })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate({
+            path: 'registrations',
+            match: { status: 'confirmed' },
+            select: '_id'
+        });
+
+    const eventsWithStats = recentEvents.map(event => ({
+        _id: event._id,
+        eventName: event.eventName,
+        eventType: event.eventType,
+        status: event.status,
+        eventStartDate: event.eventStartDate,
+        eventEndDate: event.eventEndDate,
+        registrationCount: event.registrations ? event.registrations.length : 0,
+        registrationLimit: event.registrationLimit,
+        registrationFee: event.registrationFee,
+        createdAt: event.createdAt
+    }));
+
+    res.json({
+        summary: analytics,
+        recentEvents: eventsWithStats
+    });
+});
+
 // @desc    Create new event
 // @route   POST /api/events
 // @access  Private/Organizer
@@ -413,5 +501,6 @@ module.exports = {
     getEvents,
     getEventById,
     updateEvent,
-    updateEventStatus
+    updateEventStatus,
+    getEventAnalytics
 };

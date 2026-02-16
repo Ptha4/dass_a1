@@ -4,7 +4,8 @@ const {
     getEvents,
     getEventById,
     updateEvent,
-    updateEventStatus
+    updateEventStatus,
+    getEventAnalytics
 } = require('../controllers/eventController');
 const { protect, optionalProtect } = require('../middleware/auth');
 const router = express.Router();
@@ -12,6 +13,9 @@ const router = express.Router();
 router.route('/')
     .post(protect, createEvent) // Only authenticated organizers can create events
     .get(optionalProtect, getEvents);
+
+router.route('/analytics')
+    .get(protect, getEventAnalytics); // Only authenticated organizers can access analytics
 
 router.route('/:id')
     .get(getEventById) // Anyone can view a single event

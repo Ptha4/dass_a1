@@ -111,6 +111,17 @@ const getMyTickets = async (token) => {
     return response.data;
 };
 
+// Get organizer's event analytics
+const getEventAnalytics = async (token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.get(API_URL + 'analytics', config);
+    return response.data;
+};
+
 
 const eventService = {
     createEvent,
@@ -121,6 +132,7 @@ const eventService = {
     updateEventStatus,
     registerForEvent,
     getMyTickets,
+    getEventAnalytics,
 };
 
 export default eventService;
