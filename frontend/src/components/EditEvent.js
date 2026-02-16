@@ -98,7 +98,7 @@ const EditEvent = () => {
     };
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0 }] });
+        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0, price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -132,7 +132,7 @@ const EditEvent = () => {
         if (registrationLimit && isNaN(Number(registrationLimit))) {
             newErrors.registrationLimit = 'Registration Limit must be a number.';
         }
-        if (registrationFee && isNaN(Number(registrationFee))) {
+        if (eventType !== 'merch' && registrationFee && isNaN(Number(registrationFee))) {
             newErrors.registrationFee = 'Registration Fee must be a number.';
         }
 
@@ -147,6 +147,9 @@ const EditEvent = () => {
                     }
                     if (isNaN(Number(item.stockQuantity)) || Number(item.stockQuantity) < 0) {
                         newErrors[`stockQuantity-${index}`] = `Item ${index + 1}: Stock quantity must be a non-negative number.`;
+                    }
+                    if (isNaN(Number(item.price)) || Number(item.price) < 0) {
+                        newErrors[`price-${index}`] = `Item ${index + 1}: Price must be a non-negative number.`;
                     }
                 });
             }
@@ -179,10 +182,17 @@ const EditEvent = () => {
             const eventData = {
                 ...formData,
                 registrationLimit: registrationLimit ? Number(registrationLimit) : undefined,
-                registrationFee: registrationFee ? Number(registrationFee) : undefined,
+                // For merch events, registration fee is not used
+                registrationFee: eventType === 'merch' ? undefined : (registrationFee ? Number(registrationFee) : undefined),
                 eventTags: eventTags ? eventTags.split(',').map(t => t.trim()).filter(Boolean) : [],
                 registrationForm: customFormFields,
-                items: eventType === 'merch' ? items.map(item => ({ ...item, stockQuantity: Number(item.stockQuantity) })) : [], // Send items for merch events
+                items: eventType === 'merch'
+                    ? items.map(item => ({
+                        ...item,
+                        stockQuantity: Number(item.stockQuantity),
+                        price: item.price !== undefined ? Number(item.price) : 0
+                    }))
+                    : [], // Send items for merch events
             };
 
             await eventService.updateEvent(id, eventData, token);
@@ -256,6 +266,17 @@ const EditEvent = () => {
                                     required
                                 />
                                 {errors[`stockQuantity-${index}`] && <p className="error-message">{errors[`stockQuantity-${index}`]}</p>}
+                                <input
+                                    type="number"
+                                    name="price"
+                                    placeholder="Price per item"
+                                    value={item.price}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                />
+                                {errors[`price-${index}`] && <p className="error-message">{errors[`price-${index}`]}</p>}
                                 <button type="button" onClick={() => handleRemoveItem(index)}>Remove</button>
                             </div>
                         ))}
@@ -290,11 +311,13 @@ const EditEvent = () => {
                     <input type="number" id="registrationLimit" name="registrationLimit" value={registrationLimit} onChange={onChange} />
                     {errors.registrationLimit && <p className="error-message">{errors.registrationLimit}</p>}
                 </div>
-                <div className="form-group">
-                    <label htmlFor="registrationFee">Registration Fee</label>
-                    <input type="number" id="registrationFee" name="registrationFee" value={registrationFee} onChange={onChange} />
-                    {errors.registrationFee && <p className="error-message">{errors.registrationFee}</p>}
-                </div>
+                {eventType !== 'merch' && (
+                    <div className="form-group">
+                        <label htmlFor="registrationFee">Registration Fee</label>
+                        <input type="number" id="registrationFee" name="registrationFee" value={registrationFee} onChange={onChange} />
+                        {errors.registrationFee && <p className="error-message">{errors.registrationFee}</p>}
+                    </div>
+                )}
                 <div className="form-group">
                     <label htmlFor="eventTags">Event Tags (comma-separated)</label>
                     <input type="text" id="eventTags" name="eventTags" value={eventTags} onChange={onChange} />

@@ -61,7 +61,7 @@ const CreateEvent = () => {
     };
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0 }] });
+        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0, price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -99,7 +99,7 @@ const CreateEvent = () => {
         if (registrationLimit && isNaN(Number(registrationLimit))) {
             newErrors.registrationLimit = 'Registration Limit must be a number.';
         }
-        if (registrationFee && isNaN(Number(registrationFee))) {
+        if (eventType !== 'merch' && registrationFee && isNaN(Number(registrationFee))) {
             newErrors.registrationFee = 'Registration Fee must be a number.';
         }
 
@@ -114,6 +114,9 @@ const CreateEvent = () => {
                     }
                     if (isNaN(Number(item.stockQuantity)) || Number(item.stockQuantity) < 0) {
                         newErrors[`stockQuantity-${index}`] = `Item ${index + 1}: Stock quantity must be a non-negative number.`;
+                    }
+                    if (isNaN(Number(item.price)) || Number(item.price) < 0) {
+                        newErrors[`price-${index}`] = `Item ${index + 1}: Price must be a non-negative number.`;
                     }
                 });
             }
@@ -137,11 +140,33 @@ const CreateEvent = () => {
             const user = JSON.parse(localStorage.getItem('user'));
             const token = user ? user.token : null;
 
+            console.log('=== TOKEN VALIDATION DEBUG ===');
+            console.log('User from localStorage:', user);
+            console.log('Token extracted:', token);
+            console.log('Token length:', token ? token.length : 'No token');
+            
             if (!token) {
                 setErrors({ general: 'You need to be logged in to create an event.' });
                 setLoading(false);
                 return;
             }
+
+            // Decode token to check its content (without verification)
+            try {
+                const tokenParts = token.split('.');
+                if (tokenParts.length === 3) {
+                    const payload = JSON.parse(atob(tokenParts[1]));
+                    console.log('Token payload:', payload);
+                    console.log('Token expires at:', new Date(payload.exp * 1000));
+                    console.log('Current time:', new Date());
+                    console.log('Token expired?', payload.exp * 1000 < Date.now());
+                } else {
+                    console.error('Invalid token format - expected 3 parts, got:', tokenParts.length);
+                }
+            } catch (tokenErr) {
+                console.error('Error decoding token:', tokenErr);
+            }
+            console.log('=== END TOKEN VALIDATION ===');
 
             console.log('User object before creating event:', user);
             console.log('Token before creating event:', token);
@@ -149,19 +174,55 @@ const CreateEvent = () => {
             const eventData = {
                 ...formData,
                 registrationLimit: registrationLimit ? Number(registrationLimit) : undefined,
-                registrationFee: registrationFee ? Number(registrationFee) : undefined,
+                // For merch events, registration fee is not used
+                registrationFee: eventType === 'merch' ? undefined : (registrationFee ? Number(registrationFee) : undefined),
                 eventTags: eventTags || '', // Backend expects string and will split
                 registrationForm: customFormFields, // Backend expects registrationForm
-                items: eventType === 'merch' ? items.map(item => ({ ...item, stockQuantity: Number(item.stockQuantity) })) : [], // Send items for merch events
+                items: eventType === 'merch'
+                    ? items.map(item => ({
+                        ...item,
+                        stockQuantity: Number(item.stockQuantity),
+                        price: item.price !== undefined ? Number(item.price) : 0
+                    }))
+                    : [], // Send items for merch events
             };
-            console.log('Event data being sent:', eventData); // Add this line
+            console.log('Event data being sent:', eventData);
 
             await eventService.createEvent(eventData, token);
             navigate('/organiser-dashboard'); // Redirect to drafts
         } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Failed to create event. Please try again.';
+            console.error('=== CREATE EVENT ERROR DEBUG ===');
+            console.error('Full error object:', err);
+            console.error('Error response:', err.response);
+            console.error('Error response data:', err.response?.data);
+            console.error('Error response status:', err.response?.status);
+            console.error('Error response headers:', err.response?.headers);
+            console.error('Error message:', err.message);
+            console.error('Error stack:', err.stack);
+            console.error('=== END DEBUG INFO ===');
+            
+            // Extract detailed error message
+            let errorMessage = 'Failed to create event. Please try again.';
+            
+            if (err.response?.data?.msg === 'Token is not valid') {
+                errorMessage = 'Your session has expired. Please log in again.';
+                // Clear the invalid token
+                localStorage.removeItem('user');
+                // Redirect to login after a short delay
+                setTimeout(() => {
+                    navigate('/login');
+                }, 2000);
+            } else if (err.response?.data?.message) {
+                errorMessage = err.response.data.message;
+            } else if (err.response?.data?.error) {
+                errorMessage = err.response.data.error;
+            } else if (err.response?.data) {
+                errorMessage = JSON.stringify(err.response.data);
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+            
             setErrors({ general: errorMessage });
-            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -241,6 +302,17 @@ const CreateEvent = () => {
                                     required
                                 />
                                 {errors[`stockQuantity-${index}`] && <p className="error-message">{errors[`stockQuantity-${index}`]}</p>}
+                                <input
+                                    type="number"
+                                    name="price"
+                                    placeholder="Price per item"
+                                    value={item.price}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                />
+                                {errors[`price-${index}`] && <p className="error-message">{errors[`price-${index}`]}</p>}
                                 <button type="button" onClick={() => handleRemoveItem(index)}>Remove</button>
                             </div>
                         ))}
@@ -302,17 +374,19 @@ const CreateEvent = () => {
                     />
                     {errors.registrationLimit && <p className="error-message">{errors.registrationLimit}</p>}
                 </div>
-                <div className="form-group">
-                    <label htmlFor="registrationFee">Registration Fee</label>
-                    <input
-                        type="number"
-                        id="registrationFee"
-                        name="registrationFee"
-                        value={registrationFee}
-                        onChange={onChange}
-                    />
-                    {errors.registrationFee && <p className="error-message">{errors.registrationFee}</p>}
-                </div>
+                {eventType !== 'merch' && (
+                    <div className="form-group">
+                        <label htmlFor="registrationFee">Registration Fee</label>
+                        <input
+                            type="number"
+                            id="registrationFee"
+                            name="registrationFee"
+                            value={registrationFee}
+                            onChange={onChange}
+                        />
+                        {errors.registrationFee && <p className="error-message">{errors.registrationFee}</p>}
+                    </div>
+                )}
                 <div className="form-group">
                     <label htmlFor="eventTags">Event Tags (comma-separated)</label>
                     <input

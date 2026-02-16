@@ -9,6 +9,12 @@ const ItemSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 0
+    },
+    // Price per unit for this merch item
+    price: {
+        type: Number,
+        required: false,
+        min: 0
     }
 });
 

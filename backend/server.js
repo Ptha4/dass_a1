@@ -117,6 +117,12 @@ app.post('/api/auth/login', async (req, res) => {
         if (!isMatch) {
             return res.status(400).json({ msg: 'Invalid Credentials' });
         }
+        if (user.disabled) {
+            return res.status(403).json({ msg: 'Account is disabled. Contact admin.' });
+        }
+        if (user.archived) {
+            return res.status(403).json({ msg: 'Account has been archived. Contact admin.' });
+        }
 
         const payload = {
             user: {
@@ -224,10 +230,14 @@ app.post('/api/auth/change-password', auth.protect, async (req, res) => {
     }
 });
 
-// Get all organizers (clubs)
+// Get all organizers (clubs) – public list; exclude disabled/archived
 app.get('/api/organizers', async (req, res) => {
     try {
-        const organizers = await User.find({ isOrganiser: true }).select('_id firstName lastName email category description clubInterest');
+        const organizers = await User.find({
+            isOrganiser: true,
+            disabled: { $ne: true },
+            archived: { $ne: true }
+        }).select('_id firstName lastName email category description clubInterest');
         res.json(organizers);
     } catch (err) {
         console.error(err.message);
@@ -235,13 +245,141 @@ app.get('/api/organizers', async (req, res) => {
     }
 });
 
-// Get single organizer by ID (public, for detail page)
+// Get single organizer by ID (public, for detail page); exclude disabled/archived
 app.get('/api/organizers/:id', async (req, res) => {
     try {
-        const organizer = await User.findOne({ _id: req.params.id, isOrganiser: true })
-            .select('_id firstName lastName email category description clubInterest');
+        const organizer = await User.findOne({
+            _id: req.params.id,
+            isOrganiser: true,
+            disabled: { $ne: true },
+            archived: { $ne: true }
+        }).select('_id firstName lastName email category description clubInterest');
         if (!organizer) return res.status(404).json({ message: 'Organizer not found' });
         res.json(organizer);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// ---------- Admin: Club/Organizer Management ----------
+const crypto = require('crypto');
+
+function requireAdmin(req, res, next) {
+    if (!req.user || !req.user.isAdmin) {
+        return res.status(403).json({ msg: 'Admin access required' });
+    }
+    next();
+}
+
+// List all clubs/organizers for admin (includes disabled/archived)
+app.get('/api/admin/organizers', auth.protect, requireAdmin, async (req, res) => {
+    try {
+        const organizers = await User.find({ isOrganiser: true })
+            .select('_id firstName lastName email category description clubInterest disabled archived createdAt')
+            .sort({ createdAt: -1 });
+        res.json(organizers);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Create new club/organizer: auto-generate email and password; return credentials for admin to share
+app.post('/api/admin/organizers', auth.protect, requireAdmin, async (req, res) => {
+    try {
+        const { firstName, lastName, category, description, clubInterest } = req.body;
+        const plainPassword = crypto.randomBytes(8).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
+        const emailBase = `club-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        const email = `${emailBase}@clubs.iiit.ac.in`;
+
+        const existing = await User.findOne({ email });
+        if (existing) {
+            return res.status(400).json({ msg: 'Generated email already exists; try again.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(plainPassword, salt);
+
+        const user = await User.create({
+            email,
+            password: hashedPassword,
+            firstName: firstName || 'Club',
+            lastName: lastName || '',
+            isOrganiser: true,
+            category: category || '',
+            description: description || '',
+            clubInterest: clubInterest || 'others',
+            disabled: false,
+            archived: false
+        });
+
+        const created = await User.findById(user._id).select('-password');
+        res.status(201).json({
+            organizer: created,
+            credentials: {
+                email,
+                password: plainPassword,
+                message: 'Share these credentials with the club/organizer. They can log in immediately and change password from profile.'
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Disable, enable, or archive organizer
+app.patch('/api/admin/organizers/:id', auth.protect, requireAdmin, async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id, isOrganiser: true });
+        if (!user) return res.status(404).json({ msg: 'Organizer not found' });
+
+        const { disabled, archived } = req.body;
+        const wasArchived = user.archived;
+        
+        if (typeof disabled === 'boolean') user.disabled = disabled;
+        if (typeof archived === 'boolean') user.archived = archived;
+
+        await user.save();
+
+        // Handle event visibility based on archive status
+        if (archived && !wasArchived) {
+            // Archive all events when organizer is archived
+            await Event.updateMany(
+                { organizerId: req.params.id },
+                { status: 'archived' }
+            );
+        } else if (!archived && wasArchived) {
+            // Restore events to draft status when unarchived
+            await Event.updateMany(
+                { organizerId: req.params.id, status: 'archived' },
+                { status: 'draft' }
+            );
+        }
+
+        const updated = await User.findById(user._id).select('-password');
+        res.json(updated);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Permanently delete organizer
+app.delete('/api/admin/organizers/:id', auth.protect, requireAdmin, async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id, isOrganiser: true });
+        if (!user) return res.status(404).json({ msg: 'Organizer not found' });
+        if (user.isAdmin) return res.status(400).json({ msg: 'Cannot delete an admin account.' });
+
+        // Delete all events associated with this organizer
+        await Event.deleteMany({ organizerId: req.params.id });
+        
+        // Delete the organizer
+        await User.findByIdAndDelete(req.params.id);
+        
+        res.json({ msg: 'Organizer and all associated data permanently deleted.' });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');

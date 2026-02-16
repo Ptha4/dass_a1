@@ -217,8 +217,15 @@ const EventDetail = () => {
                 <p><strong>Starts:</strong> {new Date(event.eventStartDate).toLocaleString()}</p>
                 <p><strong>Ends:</strong> {new Date(event.eventEndDate).toLocaleString()}</p>
                 <p><strong>Registration deadline:</strong> {new Date(event.registrationDeadline).toLocaleString()}</p>
-                {event.registrationLimit != null && <p><strong>Registration limit:</strong> {event.registrationLimit}</p>}
-                {event.registrationFee != null && event.registrationFee > 0 && <p><strong>Registration fee:</strong> ₹{event.registrationFee}</p>}
+                {event.registrationLimit != null && (
+                    <p><strong>Registration limit:</strong> {event.registrationLimit}</p>
+                )}
+                {event.remainingRegistrations != null && (
+                    <p><strong>Registrations left:</strong> {event.remainingRegistrations}</p>
+                )}
+                {event.eventType !== 'merch' && event.registrationFee != null && event.registrationFee > 0 && (
+                    <p><strong>Registration fee:</strong> ₹{event.registrationFee}</p>
+                )}
                 {event.eventTags && event.eventTags.length > 0 && (
                     <p><strong>Tags:</strong> {event.eventTags.join(', ')}</p>
                 )}
@@ -252,7 +259,10 @@ const EventDetail = () => {
                                 <h3>Purchase Merchandise</h3>
                                 {event.items.map(item => (
                                     <div key={item._id} className="merch-item-selection" style={{ marginBottom: '1rem' }}>
-                                        <p><strong>{item.itemName}</strong> (Stock: {item.stockQuantity})</p>
+                                        <p>
+                                            <strong>{item.itemName}</strong>{' '}
+                                            (Price: ₹{Number(item.price || 0).toFixed(2)} · Stock: {item.stockQuantity})
+                                        </p>
                                         <input
                                             type="number"
                                             min="0"
@@ -265,9 +275,20 @@ const EventDetail = () => {
                                         {item.stockQuantity === 0 && <span style={{ color: 'red' }}>Out of Stock</span>}
                                     </div>
                                 ))}
+                                <p style={{ fontWeight: 'bold', marginTop: '0.5rem' }}>
+                                    Total price:{' '}
+                                    ₹{event.items.reduce((sum, item) => {
+                                        const qty = merchQuantities[item._id] || 0;
+                                        const price = Number(item.price || 0);
+                                        return sum + qty * price;
+                                    }, 0).toFixed(2)}
+                                </p>
                                 <button
                                     onClick={handlePurchase}
-                                    disabled={registrationLoading || Object.values(merchQuantities).every(qty => qty === 0)}
+                                    disabled={
+                                        registrationLoading ||
+                                        Object.values(merchQuantities).every(qty => qty === 0)
+                                    }
                                     className="purchase-button"
                                 >
                                     {registrationLoading ? 'Purchasing...' : 'Purchase Selected Items'}

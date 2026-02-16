@@ -34,6 +34,11 @@ const RegistrationSchema = new mongoose.Schema({
             }
         }
     ],
+    // For merch events, total price paid for this registration
+    totalCost: {
+        type: Number,
+        min: 0
+    },
     // Reference to the generated ticket
     ticket: {
         type: mongoose.Schema.Types.ObjectId,

@@ -5,13 +5,37 @@ const REGISTRATION_API_URL = 'http://localhost:5000/api/register/'; // New API U
 
 // Create new event
 const createEvent = async (eventData, token) => {
+    console.log('=== EVENT SERVICE CREATE EVENT DEBUG ===');
+    console.log('API URL:', API_URL);
+    console.log('Event data received:', eventData);
+    console.log('Token provided:', token ? 'Token exists' : 'No token');
+    
     const config = {
         headers: {
             'x-auth-token': token,
         },
     };
-    const response = await axios.post(API_URL, eventData, config);
-    return response.data;
+    
+    console.log('Request config:', config);
+    
+    try {
+        console.log('Making POST request to:', API_URL);
+        const response = await axios.post(API_URL, eventData, config);
+        console.log('Response received:', response);
+        console.log('Response data:', response.data);
+        console.log('=== END EVENT SERVICE DEBUG ===');
+        return response.data;
+    } catch (error) {
+        console.error('=== EVENT SERVICE ERROR ===');
+        console.error('Axios error:', error);
+        console.error('Error response:', error.response);
+        console.error('Error status:', error.response?.status);
+        console.error('Error data:', error.response?.data);
+        console.error('Request URL:', API_URL);
+        console.error('Request data:', eventData);
+        console.error('=== END EVENT SERVICE ERROR ===');
+        throw error;
+    }
 };
 
 // Get all events (optional params: search, eventType, eligibility, fromDate, toDate, followedOnly)

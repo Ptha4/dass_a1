@@ -143,8 +143,9 @@ const registerEvent = asyncHandler(async (req, res) => {
                 },
                 quantity: itemPurchase.quantity
             });
-            // Assuming a price per item for total cost calculation, if applicable
-            // totalCost += itemPurchase.quantity * eventItem.price;
+            // Total cost = sum of quantity * price per item
+            const price = Number(eventItem.price || 0);
+            totalCost += itemPurchase.quantity * price;
         }
 
         // Save updated event with decremented stock
@@ -155,7 +156,8 @@ const registerEvent = asyncHandler(async (req, res) => {
             user: req.user.id,
             event: eventId,
             purchasedItems: itemsToPurchase,
-            status: 'confirmed'
+            status: 'confirmed',
+            totalCost
         });
         await registration.save();
 

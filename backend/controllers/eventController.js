@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const Event = require('../models/Event');
+const Registration = require('../models/Registration');
 const User = require('../models/User'); // Assuming User model is needed for organizer role check
 
 // @desc    Create new event
@@ -64,8 +65,10 @@ const createEvent = asyncHandler(async (req, res) => {
             throw err;
         }
         for (const item of items) {
-            if (!item.itemName || typeof item.itemName !== 'string' || !item.stockQuantity || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0) {
-                const err = new Error('Each item in a merch event must have a valid itemName (string) and a non-negative stockQuantity (number).');
+            if (!item.itemName || typeof item.itemName !== 'string' ||
+                item.stockQuantity === undefined || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0 ||
+                item.price === undefined || isNaN(Number(item.price)) || Number(item.price) < 0) {
+                const err = new Error('Each item in a merch event must have a valid itemName (string), a non-negative stockQuantity (number), and a non-negative price (number).');
                 err.status = 400;
                 throw err;
             }
@@ -89,12 +92,19 @@ const createEvent = asyncHandler(async (req, res) => {
         eventStartDate,
         eventEndDate,
         registrationLimit: registrationLimit ? Number(registrationLimit) : undefined,
-        registrationFee: registrationFee ? Number(registrationFee) : undefined,
+        // For merch events, registration fee is not used
+        registrationFee: eventType === 'merch' ? undefined : (registrationFee ? Number(registrationFee) : undefined),
         organizerId: req.user.id,
         eventTags: Array.isArray(eventTags) ? eventTags : (eventTags ? String(eventTags).split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []),
         registrationForm: registrationForm || [],
         status: 'draft',
-        items: eventType === 'merch' ? items : [],
+        items: eventType === 'merch'
+            ? items.map((item) => ({
+                ...item,
+                stockQuantity: Number(item.stockQuantity),
+                price: item.price !== undefined ? Number(item.price) : 0
+            }))
+            : [],
     });
 
     const createdEvent = await event.save();
@@ -118,8 +128,21 @@ const getEvents = asyncHandler(async (req, res) => {
             query.status = 'draft';
         }
     } else {
-        // Public browse: exclude drafts (only published and beyond)
+        // Public browse: exclude drafts and archived events, and events from archived/disabled organizers
         query.status = { $ne: 'draft' };
+        
+        // Exclude events from archived or disabled organizers
+        const excludedOrganizers = await User.find({
+            $or: [
+                { archived: true },
+                { disabled: true }
+            ]
+        }).select('_id');
+        
+        const excludedOrganizerIds = excludedOrganizers.map(org => org._id);
+        if (excludedOrganizerIds.length > 0) {
+            query.organizerId = { $nin: excludedOrganizerIds };
+        }
     }
 
     // Search: partial (regex) match on event name or organizer name
@@ -128,6 +151,8 @@ const getEvents = asyncHandler(async (req, res) => {
         const regex = new RegExp(term, 'i');
         const organizerIds = await User.find({
             isOrganiser: true,
+            archived: { $ne: true },
+            disabled: { $ne: true },
             $or: [
                 { firstName: regex },
                 { lastName: regex },
@@ -168,7 +193,19 @@ const getEvents = asyncHandler(async (req, res) => {
             const user = await User.findById(req.user.id).select('followedClubs').lean();
             const clubIds = (user && user.followedClubs) || [];
             if (clubIds.length > 0) {
-                query.organizerId = { $in: clubIds };
+                // Only include clubs that are not archived or disabled
+                const validClubs = await User.find({
+                    _id: { $in: clubIds },
+                    archived: { $ne: true },
+                    disabled: { $ne: true }
+                }).select('_id').lean();
+                
+                const validClubIds = validClubs.map(club => club._id);
+                if (validClubIds.length > 0) {
+                    query.organizerId = { $in: validClubIds };
+                } else {
+                    query.organizerId = { $in: [] };
+                }
             } else {
                 query.organizerId = { $in: [] };
             }
@@ -190,13 +227,35 @@ const getEvents = asyncHandler(async (req, res) => {
 const getEventById = asyncHandler(async (req, res) => {
     const event = await Event.findById(req.params.id).populate('organizerId', 'firstName lastName email');
 
-    if (event) {
-        res.json(event);
-    } else {
+    if (!event) {
         const err = new Error('Event not found');
         err.status = 404;
         throw err;
     }
+
+    // Check if event or organizer is archived/disabled
+    if (event.status === 'archived') {
+        const err = new Error('Event not found');
+        err.status = 404;
+        throw err;
+    }
+
+    if (event.organizerId && (event.organizerId.archived || event.organizerId.disabled)) {
+        const err = new Error('Event not found');
+        err.status = 404;
+        throw err;
+    }
+
+    let remainingRegistrations = null;
+    if (event.eventType !== 'merch' && event.registrationLimit) {
+        const currentCount = await Registration.countDocuments({ event: event._id, status: 'confirmed' });
+        remainingRegistrations = Math.max(0, event.registrationLimit - currentCount);
+    }
+
+    const eventObj = event.toObject();
+    eventObj.remainingRegistrations = remainingRegistrations;
+
+    res.json(eventObj);
 });
 
 // @desc    Update event
@@ -238,8 +297,10 @@ const updateEvent = asyncHandler(async (req, res) => {
                 throw err;
             }
             for (const item of items) {
-                if (!item.itemName || typeof item.itemName !== 'string' || !item.stockQuantity || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0) {
-                    const err = new Error('Each item in a merch event must have a valid itemName (string) and a non-negative stockQuantity (number).');
+                if (!item.itemName || typeof item.itemName !== 'string' ||
+                    item.stockQuantity === undefined || typeof item.stockQuantity !== 'number' || item.stockQuantity < 0 ||
+                    item.price === undefined || isNaN(Number(item.price)) || Number(item.price) < 0) {
+                    const err = new Error('Each item in a merch event must have a valid itemName (string), a non-negative stockQuantity (number), and a non-negative price (number).');
                     err.status = 400;
                     throw err;
                 }
@@ -275,10 +336,19 @@ const updateEvent = asyncHandler(async (req, res) => {
             event.eventStartDate = eventStartDate || event.eventStartDate;
             event.eventEndDate = eventEndDate || event.eventEndDate;
             event.registrationLimit = registrationLimit || event.registrationLimit;
-            event.registrationFee = registrationFee || event.registrationFee;
+            // For merch events, registration fee is not used
+            event.registrationFee = eventType === 'merch'
+                ? undefined
+                : (registrationFee || event.registrationFee);
             event.eventTags = eventTags || event.eventTags;
             event.registrationForm = registrationForm || event.registrationForm;
-            event.items = items || event.items;
+            event.items = items
+                ? items.map((item) => ({
+                    ...item,
+                    stockQuantity: Number(item.stockQuantity),
+                    price: item.price !== undefined ? Number(item.price) : 0
+                }))
+                : event.items;
         } else if (event.status === 'ongoing' || event.status === 'completed' || event.status === 'closed') {
             res.status(400);
             throw new Error('Cannot edit event details in ongoing, completed, or closed status.');

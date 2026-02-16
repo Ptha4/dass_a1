@@ -30,6 +30,8 @@ const UserSchema = new mongoose.Schema({
     selectedInterests: [{ type: String, enum: ['cultural', 'technical', 'sports', 'others'] }], // For participants (onboarding)
     followedClubs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // For participants (onboarding)
     onboardingComplete: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },   // if true, cannot log in
+    archived: { type: Boolean, default: false },   // if true, cannot log in; soft-delete
 });
 
 module.exports = mongoose.model('User', UserSchema);
