@@ -14,10 +14,27 @@ const createEvent = async (eventData, token) => {
     return response.data;
 };
 
-// Get all events
-const getEvents = async () => {
-    const response = await axios.get(API_URL);
-    return response.data;
+// Get all events (optional params: search, eventType, eligibility, fromDate, toDate, followedOnly)
+const getEvents = (params = {}, token = null) => {
+    const config = token ? { headers: { 'x-auth-token': token } } : {};
+    const searchParams = new URLSearchParams();
+    if (params.search) searchParams.set('search', params.search);
+    if (params.eventType) searchParams.set('eventType', params.eventType);
+    if (params.eligibility) searchParams.set('eligibility', params.eligibility);
+    if (params.fromDate) searchParams.set('fromDate', params.fromDate);
+    if (params.toDate) searchParams.set('toDate', params.toDate);
+    if (params.followedOnly === true) searchParams.set('followedOnly', 'true');
+    if (params.myDrafts === true) searchParams.set('myDrafts', 'true');
+    if (params.organizerId) searchParams.set('organizerId', params.organizerId);
+    const qs = searchParams.toString();
+    const url = qs ? `${API_URL}?${qs}` : API_URL;
+    return axios.get(url, config).then((res) => res.data);
+};
+
+// Get current user's draft events (organisers only)
+const getMyDrafts = (token) => {
+    if (!token) return Promise.resolve([]);
+    return getEvents({ myDrafts: true }, token);
 };
 
 // Get single event by ID
@@ -74,11 +91,12 @@ const getMyTickets = async (token) => {
 const eventService = {
     createEvent,
     getEvents,
+    getMyDrafts,
     getEventById,
     updateEvent,
     updateEventStatus,
-    registerForEvent, // Add new function
-    getMyTickets,     // Add new function
+    registerForEvent,
+    getMyTickets,
 };
 
 export default eventService;

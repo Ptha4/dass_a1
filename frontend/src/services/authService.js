@@ -30,11 +30,32 @@ const getCurrentUser = () => {
     return JSON.parse(localStorage.getItem('user'));
 };
 
+const getProfile = (token) => {
+    return axios.get(API_URL + 'user', {
+        headers: { 'x-auth-token': token },
+    }).then((res) => res.data);
+};
+
+const updateProfile = (data, token) => {
+    return axios.put(API_URL + 'profile', data, {
+        headers: { 'x-auth-token': token },
+    }).then((res) => res.data);
+};
+
+const changePassword = (currentPassword, newPassword, token) => {
+    return axios.post(API_URL + 'change-password', { currentPassword, newPassword }, {
+        headers: { 'x-auth-token': token },
+    }).then((res) => res.data);
+};
+
 const authService = {
     register,
     login,
     logout,
     getCurrentUser,
+    getProfile,
+    updateProfile,
+    changePassword,
 };
 
 export default authService;

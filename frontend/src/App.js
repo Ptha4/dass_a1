@@ -14,6 +14,7 @@ import CreateEvent from './components/CreateEvent';
 import FormBuilder from './components/FormBuilder';
 import Profile from './components/Profile';
 import ClubsOrganizers from './components/ClubsOrganizers';
+import OrganizerDetail from './components/OrganizerDetail';
 import DashboardRedirect from './components/DashboardRedirect';
 import authService from './services/authService';
 import './App.css'; // Assuming you have some basic styling
@@ -54,14 +55,14 @@ function App() {
                             <>
                                 <Link to="/dashboard">Dashboard</Link>
                                 <Link to="/events">Browse Events</Link>
-                                <Link to="/clubs">Clubs/Organizers</Link>
+                                <Link to="/clubs">All clubs</Link>
                                 <Link to="/profile">Profile</Link>
                                 <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
                             </>
                         ) : (
                             <>
                                 <Link to="/events">Browse Events</Link>
-                                <Link to="/clubs">Clubs/Organizers</Link>
+                                <Link to="/clubs">All clubs</Link>
                                 <Link to="/register">Register</Link>
                                 <Link to="/login">Login</Link>
                             </>
@@ -76,6 +77,7 @@ function App() {
                     <Route path="/dashboard" element={<DashboardRedirect />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/clubs" element={<ClubsOrganizers />} />
+                    <Route path="/clubs/:id" element={<OrganizerDetail />} />
 
                     <Route
                         path="/admin-dashboard"

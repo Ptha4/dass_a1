@@ -101,11 +101,86 @@ const createEvent = asyncHandler(async (req, res) => {
     res.status(201).json(createdEvent);
 });
 
-// @desc    Get all events
-// @route   GET /api/events
-// @access  Public
+// Helper: escape special regex chars for partial matching
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// @desc    Get all events (with optional search & filters)
+// @route   GET /api/events?search=&eventType=&eligibility=&fromDate=&toDate=&followedOnly=
+// @access  Public (optional auth for followedOnly)
 const getEvents = asyncHandler(async (req, res) => {
-    const events = await Event.find({}).populate('organizerId', 'firstName lastName email');
+    const { search, eventType, eligibility, fromDate, toDate, followedOnly, myDrafts } = req.query;
+    const query = {};
+
+    // Organiser's drafts only (requires auth)
+    if (myDrafts === 'true' || myDrafts === true) {
+        if (req.user && req.user.id) {
+            query.organizerId = req.user.id;
+            query.status = 'draft';
+        }
+    } else {
+        // Public browse: exclude drafts (only published and beyond)
+        query.status = { $ne: 'draft' };
+    }
+
+    // Search: partial (regex) match on event name or organizer name
+    if (search && String(search).trim()) {
+        const term = escapeRegex(String(search).trim());
+        const regex = new RegExp(term, 'i');
+        const organizerIds = await User.find({
+            isOrganiser: true,
+            $or: [
+                { firstName: regex },
+                { lastName: regex },
+                { email: regex },
+            ],
+        })
+            .select('_id')
+            .lean();
+        const ids = organizerIds.map((o) => o._id);
+        query.$or = [
+            { eventName: regex },
+            { organizerId: { $in: ids } },
+        ];
+    }
+
+    if (eventType && String(eventType).trim()) {
+        query.eventType = String(eventType).trim();
+    }
+
+    if (eligibility && String(eligibility).trim()) {
+        query.eligibility = String(eligibility).trim();
+    }
+
+    // Date range: event overlaps [fromDate, toDate]
+    if (fromDate || toDate) {
+        query.$and = query.$and || [];
+        if (fromDate) {
+            query.$and.push({ eventEndDate: { $gte: new Date(fromDate) } });
+        }
+        if (toDate) {
+            query.$and.push({ eventStartDate: { $lte: new Date(toDate) } });
+        }
+    }
+
+    // Followed clubs only (requires auth)
+    if (followedOnly === 'true' || followedOnly === true) {
+        if (req.user && req.user.id) {
+            const user = await User.findById(req.user.id).select('followedClubs').lean();
+            const clubIds = (user && user.followedClubs) || [];
+            if (clubIds.length > 0) {
+                query.organizerId = { $in: clubIds };
+            } else {
+                query.organizerId = { $in: [] };
+            }
+        }
+    }
+
+    // Filter by single organizer (e.g. for organizer detail page)
+    if (req.query.organizerId && String(req.query.organizerId).trim()) {
+        query.organizerId = req.query.organizerId.trim();
+    }
+
+    const events = await Event.find(query).populate('organizerId', 'firstName lastName email');
     res.json(events);
 });
 

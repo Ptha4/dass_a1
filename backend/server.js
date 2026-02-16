@@ -165,10 +165,69 @@ app.get('/api/auth/user', auth.protect, async (req, res) => {
     }
 });
 
-// Get all organizers
+// Update profile (protected) - editable fields for participants
+app.put('/api/auth/profile', auth.protect, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ msg: 'User not found' });
+
+        const { firstName, lastName, contactNumber, collegeOrOrgName, selectedInterests, followedClubs } = req.body;
+
+        if (firstName !== undefined) user.firstName = firstName;
+        if (lastName !== undefined) user.lastName = lastName;
+        if (contactNumber !== undefined) user.contactNumber = contactNumber;
+        if (collegeOrOrgName !== undefined) user.collegeOrOrgName = collegeOrOrgName;
+        if (Array.isArray(selectedInterests)) {
+            user.selectedInterests = selectedInterests.filter(i => ['cultural', 'technical', 'sports', 'others'].includes(i));
+        }
+        if (Array.isArray(followedClubs)) {
+            user.followedClubs = followedClubs;
+            user.organizerPreferences = followedClubs;
+        }
+
+        await user.save();
+        const updated = await User.findById(user._id).select('-password');
+        res.json(updated);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Change password (protected)
+app.post('/api/auth/change-password', auth.protect, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ msg: 'Current password and new password are required.' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ msg: 'New password must be at least 6 characters.' });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ msg: 'User not found' });
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ msg: 'Current password is incorrect.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        await user.save();
+
+        res.json({ msg: 'Password changed successfully.' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Get all organizers (clubs)
 app.get('/api/organizers', async (req, res) => {
     try {
-        const organizers = await User.find({ isOrganiser: true }).select('_id firstName lastName email category description');
+        const organizers = await User.find({ isOrganiser: true }).select('_id firstName lastName email category description clubInterest');
         res.json(organizers);
     } catch (err) {
         console.error(err.message);
@@ -176,9 +235,22 @@ app.get('/api/organizers', async (req, res) => {
     }
 });
 
-// Save participant onboarding preferences
+// Get single organizer by ID (public, for detail page)
+app.get('/api/organizers/:id', async (req, res) => {
+    try {
+        const organizer = await User.findOne({ _id: req.params.id, isOrganiser: true })
+            .select('_id firstName lastName email category description clubInterest');
+        if (!organizer) return res.status(404).json({ message: 'Organizer not found' });
+        res.json(organizer);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Save participant onboarding preferences (selected interests + followed clubs)
 app.post('/api/participants/onboarding', auth.protect, async (req, res) => {
-    const { organizerIds } = req.body;
+    const { organizerIds, followedClubs, selectedInterests } = req.body;
 
     try {
         let user = await User.findById(req.user.id);
@@ -187,14 +259,16 @@ app.post('/api/participants/onboarding', auth.protect, async (req, res) => {
             return res.status(404).json({ msg: 'User not found' });
         }
 
-        // Ensure the user is a participant (or at least not an organizer/admin)
-        // This check might be redundant if the frontend only shows onboarding to participants
-        // but it's good practice for backend validation.
         if (user.isOrganiser || user.isAdmin) {
             return res.status(403).json({ msg: 'Only participants can complete onboarding' });
         }
 
-        user.organizerPreferences = organizerIds;
+        const clubIds = Array.isArray(followedClubs) ? followedClubs : (Array.isArray(organizerIds) ? organizerIds : []);
+        const interests = Array.isArray(selectedInterests) ? selectedInterests : [];
+
+        user.followedClubs = clubIds;
+        user.organizerPreferences = clubIds; // keep in sync for backward compat
+        user.selectedInterests = interests.filter(i => ['cultural', 'technical', 'sports', 'others'].includes(i));
         user.onboardingComplete = true;
 
         await user.save();

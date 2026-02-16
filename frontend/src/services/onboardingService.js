@@ -6,7 +6,11 @@ const getOrganizers = () => {
     return axios.get(API_BASE_URL + 'organizers');
 };
 
-const saveOnboardingPreferences = (organizerIds) => {
+const getOrganizerById = (id) => {
+    return axios.get(API_BASE_URL + 'organizers/' + id).then((res) => res.data);
+};
+
+const saveOnboardingPreferences = (followedClubs, selectedInterests) => {
     const user = JSON.parse(localStorage.getItem('user'));
     const token = user ? user.token : null;
 
@@ -16,7 +20,7 @@ const saveOnboardingPreferences = (organizerIds) => {
 
     return axios.post(
         API_BASE_URL + 'participants/onboarding',
-        { organizerIds },
+        { followedClubs: followedClubs || [], selectedInterests: selectedInterests || [], organizerIds: followedClubs || [] },
         {
             headers: {
                 'x-auth-token': token,
@@ -27,6 +31,7 @@ const saveOnboardingPreferences = (organizerIds) => {
 
 const onboardingService = {
     getOrganizers,
+    getOrganizerById,
     saveOnboardingPreferences,
 };
 

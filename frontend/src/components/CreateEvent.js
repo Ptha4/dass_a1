@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
-import FormBuilder from './FormBuilder'; // Import FormBuilder
-import '../components/CreateEvent.css'; // Assuming a CSS file for styling
+import FormBuilder from './FormBuilder';
+import '../components/CreateEvent.css';
+
+const dateIn5Days = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    return d.toISOString().slice(0, 10);
+};
 
 const CreateEvent = () => {
     const [formData, setFormData] = useState({
@@ -10,13 +16,13 @@ const CreateEvent = () => {
         eventDescription: '',
         eventType: 'normal',
         eligibility: 'IIIT and Non-IIIT Participant',
-        registrationDeadline: '',
-        eventStartDate: '',
-        eventEndDate: '',
-        registrationLimit: '',
-        registrationFee: '',
-        eventTags: '',
-        location: '', // Added location
+        registrationDeadline: dateIn5Days(),
+        eventStartDate: dateIn5Days(),
+        eventEndDate: dateIn5Days(),
+        registrationLimit: 1,
+        registrationFee: 0,
+        eventTags: 'none',
+        location: 'IIIT Hyderabad', // Added location
         items: [], // New state for merch items
     });
     const [customFormFields, setCustomFormFields] = useState([]); // New state for custom form fields
@@ -151,7 +157,7 @@ const CreateEvent = () => {
             console.log('Event data being sent:', eventData); // Add this line
 
             await eventService.createEvent(eventData, token);
-            navigate('/events'); // Redirect to event dashboard
+            navigate('/organiser-dashboard'); // Redirect to drafts
         } catch (err) {
             const errorMessage = err.response?.data?.message || 'Failed to create event. Please try again.';
             setErrors({ general: errorMessage });

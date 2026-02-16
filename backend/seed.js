@@ -32,7 +32,7 @@ const seedUsers = async () => {
         await User.findOneAndUpdate(
             { email: 'org1@clubs.iiit.ac.in' },
             {
-                username: 'org1', // This field is not in the schema, but was in the prompt. I'll use email for uniqueness.
+                username: 'org1',
                 category: 'a',
                 description: 'a',
                 email: 'org1@clubs.iiit.ac.in',
@@ -40,6 +40,7 @@ const seedUsers = async () => {
                 isOrganiser: true,
                 firstName: 'Org1',
                 lastName: 'User',
+                clubInterest: 'technical',
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -50,7 +51,7 @@ const seedUsers = async () => {
         await User.findOneAndUpdate(
             { email: 'org2@clubs.iiit.ac.in' },
             {
-                username: 'org2', // This field is not in the schema, but was in the prompt. I'll use email for uniqueness.
+                username: 'org2',
                 category: 'b',
                 description: 'b',
                 email: 'org2@clubs.iiit.ac.in',
@@ -58,6 +59,7 @@ const seedUsers = async () => {
                 isOrganiser: true,
                 firstName: 'Org2',
                 lastName: 'User',
+                clubInterest: 'cultural',
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -71,12 +73,12 @@ const seedUsers = async () => {
                 lastName: 'user',
                 email: 'user@research.iiit.ac.in',
                 password: participantPassword,
-                participantType: 'iiit participant',
+                participantType: 'IIIT Participant',
                 collegeOrOrgName: 'IIIT Hyderabad',
                 contactNumber: '9999999999',
                 isAdmin: false,
                 isOrganiser: false,
-                onboardingComplete: true
+                onboardingComplete: false
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -90,7 +92,7 @@ const seedUsers = async () => {
                 lastName: 'user',
                 email: 'user@test.ac.in',
                 password: participantPassword,
-                participantType: 'non-iiit participant',
+                participantType: 'Non-IIIT Participant',
                 collegeOrOrgName: 'IIT Hyderabad',
                 contactNumber: '9999999999',
                 isAdmin: false,

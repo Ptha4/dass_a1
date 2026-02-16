@@ -25,8 +25,11 @@ const UserSchema = new mongoose.Schema({
     isOrganiser: { type: Boolean, default: false },
     category: { type: String }, // For organizers
     description: { type: String }, // For organizers
-    organizerPreferences: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // For participants to store preferred organizers
-    onboardingComplete: { type: Boolean, default: false }, // To track if participant has completed onboarding
+    clubInterest: { type: String, enum: ['cultural', 'technical', 'sports', 'others'] }, // For organizers/clubs
+    organizerPreferences: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Legacy: preferred organizers
+    selectedInterests: [{ type: String, enum: ['cultural', 'technical', 'sports', 'others'] }], // For participants (onboarding)
+    followedClubs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // For participants (onboarding)
+    onboardingComplete: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model('User', UserSchema);
