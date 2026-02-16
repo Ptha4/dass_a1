@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_URL = 'http://localhost:5000/api/events/';
+const REGISTRATION_API_URL = 'http://localhost:5000/api/register/'; // New API URL for registrations
 
 // Create new event
 const createEvent = async (eventData, token) => {
@@ -47,12 +48,37 @@ const updateEventStatus = async (id, statusData, token) => {
     return response.data;
 };
 
+// Register for an event or purchase merchandise
+const registerForEvent = async (eventId, purchasedItems, token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.post(REGISTRATION_API_URL + eventId, { purchasedItems }, config);
+    return response.data;
+};
+
+// Get user's registrations/tickets
+const getMyTickets = async (token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.get(REGISTRATION_API_URL + 'my-tickets', config);
+    return response.data;
+};
+
+
 const eventService = {
     createEvent,
     getEvents,
     getEventById,
     updateEvent,
     updateEventStatus,
+    registerForEvent, // Add new function
+    getMyTickets,     // Add new function
 };
 
 export default eventService;

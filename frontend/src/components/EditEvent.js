@@ -64,7 +64,7 @@ const EditEvent = () => {
                     eventName: event.eventName || '',
                     eventDescription: event.eventDescription || '',
                     eventType: event.eventType || 'normal',
-                    eligibility: event.eligibility || '',
+                    eligibility: (event.eligibility === 'IIIT Participant' || event.eligibility === 'IIIT and Non-IIIT Participant') ? event.eligibility : 'IIIT and Non-IIIT Participant',
                     registrationDeadline: formatDateForInput(event.registrationDeadline),
                     eventStartDate: formatDateForInput(event.eventStartDate),
                     eventEndDate: formatDateForInput(event.eventEndDate),
@@ -265,7 +265,10 @@ const EditEvent = () => {
 
                 <div className="form-group">
                     <label htmlFor="eligibility">Eligibility</label>
-                    <input type="text" id="eligibility" name="eligibility" value={eligibility} onChange={onChange} />
+                    <select id="eligibility" name="eligibility" value={eligibility} onChange={onChange}>
+                        <option value="IIIT Participant">IIIT Participant</option>
+                        <option value="IIIT and Non-IIIT Participant">IIIT and Non-IIIT Participant</option>
+                    </select>
                 </div>
                 <div className="form-group">
                     <label htmlFor="registrationDeadline">Registration Deadline</label>

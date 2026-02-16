@@ -9,7 +9,7 @@ const CreateEvent = () => {
         eventName: '',
         eventDescription: '',
         eventType: 'normal',
-        eligibility: '',
+        eligibility: 'IIIT and Non-IIIT Participant',
         registrationDeadline: '',
         eventStartDate: '',
         eventEndDate: '',
@@ -137,6 +137,9 @@ const CreateEvent = () => {
                 return;
             }
 
+            console.log('User object before creating event:', user);
+            console.log('Token before creating event:', token);
+
             const eventData = {
                 ...formData,
                 registrationLimit: registrationLimit ? Number(registrationLimit) : undefined,
@@ -145,6 +148,7 @@ const CreateEvent = () => {
                 registrationForm: customFormFields, // Backend expects registrationForm
                 items: eventType === 'merch' ? items.map(item => ({ ...item, stockQuantity: Number(item.stockQuantity) })) : [], // Send items for merch events
             };
+            console.log('Event data being sent:', eventData); // Add this line
 
             await eventService.createEvent(eventData, token);
             navigate('/events'); // Redirect to event dashboard
@@ -240,13 +244,10 @@ const CreateEvent = () => {
 
                 <div className="form-group">
                     <label htmlFor="eligibility">Eligibility</label>
-                    <input
-                        type="text"
-                        id="eligibility"
-                        name="eligibility"
-                        value={eligibility}
-                        onChange={onChange}
-                    />
+                    <select id="eligibility" name="eligibility" value={eligibility} onChange={onChange}>
+                        <option value="IIIT Participant">IIIT Participant</option>
+                        <option value="IIIT and Non-IIIT Participant">IIIT and Non-IIIT Participant</option>
+                    </select>
                 </div>
                 <div className="form-group">
                     <label htmlFor="registrationDeadline">Registration Deadline</label>

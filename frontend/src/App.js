@@ -11,7 +11,10 @@ import EventDashboard from './components/EventDashboard';
 import EventDetail from './components/EventDetail';
 import EditEvent from './components/EditEvent';
 import CreateEvent from './components/CreateEvent';
-import FormBuilder from './components/FormBuilder'; // Import FormBuilder
+import FormBuilder from './components/FormBuilder';
+import Profile from './components/Profile';
+import ClubsOrganizers from './components/ClubsOrganizers';
+import DashboardRedirect from './components/DashboardRedirect';
 import authService from './services/authService';
 import './App.css'; // Assuming you have some basic styling
 
@@ -44,21 +47,24 @@ function App() {
 
     return (
         <div className="App">
-                <nav>
-                    <Link to="/">Home</Link>
-                    {currentUser && currentUser.email && (
-                        <span style={{ marginLeft: '10px', fontWeight: 'bold' }}>
-                            Welcome, {currentUser.email}
-                        </span>
-                    )}
-                    <div style={{ marginLeft: 'auto' }}> {/* Pushes login/logout to the right */}
-                        {!currentUser ? (
+                <nav className="app-nav">
+                    <Link to="/" className="nav-logo">Event System</Link>
+                    <div className="nav-links">
+                        {currentUser ? (
                             <>
+                                <Link to="/dashboard">Dashboard</Link>
+                                <Link to="/events">Browse Events</Link>
+                                <Link to="/clubs">Clubs/Organizers</Link>
+                                <Link to="/profile">Profile</Link>
+                                <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
+                            </>
+                        ) : (
+                            <>
+                                <Link to="/events">Browse Events</Link>
+                                <Link to="/clubs">Clubs/Organizers</Link>
                                 <Link to="/register">Register</Link>
                                 <Link to="/login">Login</Link>
                             </>
-                        ) : (
-                            <button onClick={handleLogout}>Logout</button>
                         )}
                     </div>
                 </nav>
@@ -67,6 +73,9 @@ function App() {
                     <Route path="/" element={<h1>Welcome to the Event Management System</h1>} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/dashboard" element={<DashboardRedirect />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/clubs" element={<ClubsOrganizers />} />
 
                     <Route
                         path="/admin-dashboard"

@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
 const eventRoutes = require('./routes/eventRoutes'); // Import event routes
+const registrationRoutes = require('./routes/registrationRoutes'); // Import registration routes
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ const Event = require('./models/Event'); // Import Event model
 
 // Use event routes
 app.use('/api/events', eventRoutes);
+app.use('/api/register', registrationRoutes); // Use registration routes
 
 // Register Route
 app.post('/api/auth/register', async (req, res) => {

@@ -13,29 +13,29 @@ const seedUsers = async () => {
         // Admin User
         const adminPassword = await bcrypt.hash('admin', 10);
         await User.findOneAndUpdate(
-            { email: 'admin@example.com' }, // Using a placeholder email for admin
+            { email: 'admin@iiit.ac.in' }, // Using a placeholder email for admin
             { 
-                username: 'admin', // This field is not in the schema, but was in the prompt. I'll use email for uniqueness.
+                username: 'admin',
                 password: adminPassword,
                 isAdmin: true,
                 isOrganiser: false,
                 firstName: 'Admin',
                 lastName: 'User',
-                email: 'admin@example.com', // Using email as the unique identifier
+                email: 'admin@iiit.ac.in', // Using email as the unique identifier
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
         console.log('Admin user added/updated');
 
         // Organizer 1
-        const org1Password = await bcrypt.hash('org1', 10);
+        const org1Password = await bcrypt.hash('org', 10);
         await User.findOneAndUpdate(
-            { email: 'a@f.com' },
+            { email: 'org1@clubs.iiit.ac.in' },
             {
                 username: 'org1', // This field is not in the schema, but was in the prompt. I'll use email for uniqueness.
                 category: 'a',
                 description: 'a',
-                email: 'a@f.com',
+                email: 'org1@clubs.iiit.ac.in',
                 password: org1Password,
                 isOrganiser: true,
                 firstName: 'Org1',
@@ -46,14 +46,14 @@ const seedUsers = async () => {
         console.log('Organizer 1 added/updated');
 
         // Organizer 2
-        const org2Password = await bcrypt.hash('org2', 10);
+        const org2Password = await bcrypt.hash('org', 10);
         await User.findOneAndUpdate(
-            { email: 'b@f.com' },
+            { email: 'org2@clubs.iiit.ac.in' },
             {
                 username: 'org2', // This field is not in the schema, but was in the prompt. I'll use email for uniqueness.
                 category: 'b',
                 description: 'b',
-                email: 'b@f.com',
+                email: 'org2@clubs.iiit.ac.in',
                 password: org2Password,
                 isOrganiser: true,
                 firstName: 'Org2',
@@ -62,6 +62,44 @@ const seedUsers = async () => {
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
         console.log('Organizer 2 added/updated');
+
+        const participantPassword = await bcrypt.hash('user', 10);
+        await User.findOneAndUpdate(
+            { email: 'user@research.iiit.ac.in' },
+            {
+                firstName: 'user',
+                lastName: 'user',
+                email: 'user@research.iiit.ac.in',
+                password: participantPassword,
+                participantType: 'iiit participant',
+                collegeOrOrgName: 'IIIT Hyderabad',
+                contactNumber: '9999999999',
+                isAdmin: false,
+                isOrganiser: false,
+                onboardingComplete: true
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        console.log('Participant user added/updated');
+
+        const nonparticipantPassword = await bcrypt.hash('user', 10);
+        await User.findOneAndUpdate(
+            { email: 'user@test.ac.in' },
+            {
+                firstName: 'user',
+                lastName: 'user',
+                email: 'user@test.ac.in',
+                password: participantPassword,
+                participantType: 'non-iiit participant',
+                collegeOrOrgName: 'IIT Hyderabad',
+                contactNumber: '9999999999',
+                isAdmin: false,
+                isOrganiser: false,
+                onboardingComplete: true
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        console.log('Participant user added/updated');
 
         console.log('Users seeded successfully');
         process.exit();

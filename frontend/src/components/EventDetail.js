@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
 import authService from '../services/authService';
 
 const EventDetail = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [event, setEvent] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [publishLoading, setPublishLoading] = useState(false);
     const [publishError, setPublishError] = useState(null);
+
+    // New state for registration/purchase
+    const [registrationLoading, setRegistrationLoading] = useState(false);
+    const [registrationError, setRegistrationError] = useState(null);
+    const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [merchQuantities, setMerchQuantities] = useState({}); // { itemId: quantity }
+
+    const currentUser = authService.getCurrentUser();
+    const isOrganizer = currentUser?.isOrganiser;
+    const isParticipant = !currentUser?.isOrganiser && (currentUser?.participantType === 'IIIT Participant' || currentUser?.participantType === 'Non-IIIT Participant');
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -21,6 +32,14 @@ const EventDetail = () => {
             try {
                 const data = await eventService.getEventById(id);
                 setEvent(data);
+                // Initialize merchQuantities if it's a merch event
+                if (data.eventType === 'merch' && data.items) {
+                    const initialQuantities = {};
+                    data.items.forEach(item => {
+                        initialQuantities[item._id] = 0;
+                    });
+                    setMerchQuantities(initialQuantities);
+                }
             } catch (err) {
                 setError(err.response?.status === 404
                     ? 'Event not found.'
@@ -53,6 +72,87 @@ const EventDetail = () => {
         }
     };
 
+    const handleRegister = async () => {
+        const user = authService.getCurrentUser();
+        const token = user?.token;
+        if (!token) {
+            setRegistrationError('You must be logged in to register.');
+            return;
+        }
+        if (!isParticipant) {
+            setRegistrationError('Only participants can register for events.');
+            return;
+        }
+
+        setRegistrationLoading(true);
+        setRegistrationError(null);
+        setRegistrationSuccess(false);
+
+        try {
+            await eventService.registerForEvent(event._id, null, token);
+            setRegistrationSuccess(true);
+            // Optionally, navigate to a success page or participation history
+            navigate('/participant-dashboard');
+        } catch (err) {
+            setRegistrationError(err.response?.data?.message || err.message || 'Failed to register for event.');
+        } finally {
+            setRegistrationLoading(false);
+        }
+    };
+
+    const handleMerchQuantityChange = (itemId, quantity) => {
+        setMerchQuantities(prev => ({
+            ...prev,
+            [itemId]: Math.max(0, parseInt(quantity, 10) || 0) // Ensure non-negative integer
+        }));
+    };
+
+    const handlePurchase = async () => {
+        const user = authService.getCurrentUser();
+        const token = user?.token;
+        if (!token) {
+            setRegistrationError('You must be logged in to purchase merchandise.');
+            return;
+        }
+        if (!isParticipant) {
+            setRegistrationError('Only participants can purchase merchandise.');
+            return;
+        }
+
+        const purchasedItems = Object.entries(merchQuantities)
+            .filter(([, quantity]) => quantity > 0)
+            .map(([itemId, quantity]) => ({ itemId, quantity }));
+
+        if (purchasedItems.length === 0) {
+            setRegistrationError('Please select at least one item to purchase.');
+            return;
+        }
+
+        // Client-side stock validation (backend will also validate)
+        for (const item of purchasedItems) {
+            const eventItem = event.items.find(ei => ei._id === item.itemId);
+            if (!eventItem || eventItem.stockQuantity < item.quantity) {
+                setRegistrationError(`Not enough stock for ${eventItem?.itemName || 'an item'}.`);
+                return;
+            }
+        }
+
+        setRegistrationLoading(true);
+        setRegistrationError(null);
+        setRegistrationSuccess(false);
+
+        try {
+            await eventService.registerForEvent(event._id, purchasedItems, token);
+            setRegistrationSuccess(true);
+            navigate('/participant-dashboard');
+        } catch (err) {
+            setRegistrationError(err.response?.data?.message || err.message || 'Failed to purchase merchandise.');
+        } finally {
+            setRegistrationLoading(false);
+        }
+    };
+
+
     if (loading) {
         return <div className="event-detail-container">Loading event...</div>;
     }
@@ -70,16 +170,23 @@ const EventDetail = () => {
         return null;
     }
 
-    const currentUser = authService.getCurrentUser();
-    const isDraft = event.status === 'draft';
-    const showEditButton = isDraft && currentUser?.isOrganiser;
-    const showPublishButton = isDraft && currentUser?.isOrganiser;
+    const showEditButton = event.status === 'draft' && isOrganizer;
+    const showPublishButton = event.status === 'draft' && isOrganizer;
 
     const organizerName = event.organizerId
         ? (event.organizerId.firstName && event.organizerId.lastName
             ? `${event.organizerId.firstName} ${event.organizerId.lastName}`
             : event.organizerId.email || event.organizerId.username)
         : 'N/A';
+
+    const isRegistrationOpen = event.status === 'published' && new Date() < new Date(event.registrationDeadline);
+    const isMerchEvent = event.eventType === 'merch';
+    const isNormalEvent = event.eventType === 'normal' || event.eventType === 'ticket' || event.eventType === 'rsvp';
+
+    // User can register only if they meet the event's eligibility
+    const meetsEligibility = !event.eligibility
+        || event.eligibility === 'IIIT and Non-IIIT Participant'
+        || (event.eligibility === 'IIIT Participant' && currentUser?.participantType === 'IIIT Participant');
 
     return (
         <div className="event-detail-container">
@@ -115,6 +222,63 @@ const EventDetail = () => {
                 {event.eventTags && event.eventTags.length > 0 && (
                     <p><strong>Tags:</strong> {event.eventTags.join(', ')}</p>
                 )}
+
+                {/* Registration/Purchase Section */}
+                {isRegistrationOpen && currentUser && !isOrganizer && !meetsEligibility && (
+                    <p style={{ marginTop: '1rem', color: '#c00' }}>
+                        You are not eligible to register for this event. This event is for {event.eligibility === 'IIIT Participant' ? 'IIIT participants only.' : 'certain participants.'}
+                    </p>
+                )}
+                {isRegistrationOpen && currentUser && !isOrganizer && meetsEligibility && (
+                    <div className="registration-purchase-section" style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+                        {registrationError && <p className="error-message">{registrationError}</p>}
+                        {registrationSuccess && <p className="success-message">Operation successful! Redirecting to your tickets...</p>}
+
+                        {isNormalEvent && (
+                            <>
+                                <h3>Register for Event</h3>
+                                <button
+                                    onClick={handleRegister}
+                                    disabled={registrationLoading}
+                                    className="register-button"
+                                >
+                                    {registrationLoading ? 'Registering...' : 'Register Now'}
+                                </button>
+                            </>
+                        )}
+
+                        {isMerchEvent && event.items && event.items.length > 0 && (
+                            <>
+                                <h3>Purchase Merchandise</h3>
+                                {event.items.map(item => (
+                                    <div key={item._id} className="merch-item-selection" style={{ marginBottom: '1rem' }}>
+                                        <p><strong>{item.itemName}</strong> (Stock: {item.stockQuantity})</p>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max={item.stockQuantity}
+                                            value={merchQuantities[item._id] || 0}
+                                            onChange={(e) => handleMerchQuantityChange(item._id, e.target.value)}
+                                            style={{ width: '60px', marginRight: '10px' }}
+                                            disabled={item.stockQuantity === 0}
+                                        />
+                                        {item.stockQuantity === 0 && <span style={{ color: 'red' }}>Out of Stock</span>}
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={handlePurchase}
+                                    disabled={registrationLoading || Object.values(merchQuantities).every(qty => qty === 0)}
+                                    className="purchase-button"
+                                >
+                                    {registrationLoading ? 'Purchasing...' : 'Purchase Selected Items'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+                {!isRegistrationOpen && <p style={{ marginTop: '1rem', color: 'gray' }}>Registration is currently closed for this event.</p>}
+                {!currentUser && <p style={{ marginTop: '1rem', color: 'gray' }}>Please log in to register or purchase.</p>}
+                {isOrganizer && <p style={{ marginTop: '1rem', color: 'gray' }}>Organizers cannot register for their own events.</p>}
             </div>
         </div>
     );
