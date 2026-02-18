@@ -134,17 +134,21 @@ const registerEvent = asyncHandler(async (req, res) => {
                 throw err;
             }
 
+            // Total cost = sum of quantity * price per item
+            const price = Number(eventItem.price || 0);
+            
             // Decrement stock
             updatedEventItems[eventItemIndex].stockQuantity -= itemPurchase.quantity;
             itemsToPurchase.push({
                 item: {
                     itemName: eventItem.itemName,
-                    stockQuantity: eventItem.stockQuantity + itemPurchase.quantity // Snapshot of original stock
+                    stockQuantity: eventItem.stockQuantity + itemPurchase.quantity, // Snapshot of original stock
+                    price: price // Snapshot of price at purchase
                 },
-                quantity: itemPurchase.quantity
+                quantity: itemPurchase.quantity,
+                price: price // Price is required at this level too
             });
-            // Total cost = sum of quantity * price per item
-            const price = Number(eventItem.price || 0);
+            
             totalCost += itemPurchase.quantity * price;
         }
 

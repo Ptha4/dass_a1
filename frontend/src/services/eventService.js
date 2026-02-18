@@ -184,6 +184,44 @@ const approvePayment = async (registrationId, approved, rejectionReason, token) 
 };
 
 
+// Manual override for attendance
+const manualOverride = async (registrationId, action, reason, token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    
+    const response = await axios.post(`http://localhost:5000/api/attendance/manual-override`, 
+        { registrationId, action, reason }, config);
+    return response.data;
+};
+
+// Get event attendance
+const getEventAttendance = async (eventId, token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    
+    const response = await axios.get(`http://localhost:5000/api/attendance/${eventId}`, config);
+    return response.data;
+};
+
+// Scan QR code
+const scanQRCode = async (qrData, eventId, token, scanMethod = 'camera') => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    
+    const response = await axios.post(`http://localhost:5000/api/attendance/scan`, 
+        { qrData, eventId, scanMethod }, config);
+    return response.data;
+};
+
 const eventService = {
     createEvent,
     getEvents,
@@ -197,6 +235,9 @@ const eventService = {
     uploadPaymentProof,
     getPendingApprovals,
     approvePayment,
+    manualOverride,
+    getEventAttendance,
+    scanQRCode
 };
 
 export default eventService;

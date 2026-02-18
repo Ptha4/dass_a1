@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
 const eventRoutes = require('./routes/eventRoutes'); // Import event routes
 const registrationRoutes = require('./routes/registrationRoutes'); // Import registration routes
+const attendanceRoutes = require('./routes/attendanceRoutes'); // Import attendance routes
 const path = require('path');
 
 dotenv.config();
@@ -30,6 +31,7 @@ const Event = require('./models/Event'); // Import Event model
 // Use event routes
 app.use('/api/events', eventRoutes);
 app.use('/api/register', registrationRoutes); // Use registration routes
+app.use('/api/attendance', attendanceRoutes); // Use attendance routes
 
 // Register Route
 app.post('/api/auth/register', async (req, res) => {

@@ -2,6 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
 import authService from '../services/authService';
+import QRScanner from './QRScanner';
+import AttendanceDashboard from './AttendanceDashboard';
+import './OrganiserDashboard.css';
 import PaymentApproval from './PaymentApproval';
 import './OrganiserDashboard.css';
 
@@ -13,6 +16,7 @@ const OrganiserDashboard = () => {
     const [analyticsLoading, setAnalyticsLoading] = useState(true);
     const [publishingId, setPublishingId] = useState(null);
     const [activeTab, setActiveTab] = useState('carousel');
+    const [selectedEventId, setSelectedEventId] = useState(null);
     const navigate = useNavigate();
     const user = authService.getCurrentUser();
     const token = user?.token;
@@ -187,6 +191,18 @@ const OrganiserDashboard = () => {
                     Payment Approvals
                 </button>
                 <button
+                    className={`tab-btn ${activeTab === 'scanner' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('scanner')}
+                >
+                    QR Scanner
+                </button>
+                <button
+                    className={`tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('attendance')}
+                >
+                    Attendance
+                </button>
+                <button
                     className={`tab-btn ${activeTab === 'drafts' ? 'active' : ''}`}
                     onClick={() => setActiveTab('drafts')}
                 >
@@ -332,6 +348,72 @@ const OrganiserDashboard = () => {
             {activeTab === 'approvals' && (
                 <div className="dashboard-section">
                     <PaymentApproval />
+                </div>
+            )}
+
+            {activeTab === 'scanner' && (
+                <div className="dashboard-section">
+                    <div className="event-selector">
+                        <label>Select Event:</label>
+                        <select 
+                            value={selectedEventId || ''} 
+                            onChange={(e) => setSelectedEventId(e.target.value)}
+                            className="event-select"
+                        >
+                            <option value="">Choose an event...</option>
+                            {allEvents
+                                .filter(event => event.status === 'published')
+                                .map(event => (
+                                    <option key={event._id} value={event._id}>
+                                        {event.eventName} ({event.eventType})
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </div>
+                    {!selectedEventId ? (
+                        <div className="empty-state">
+                            <p>Please select an event to start scanning QR codes.</p>
+                        </div>
+                    ) : (
+                        <QRScanner 
+                            eventId={selectedEventId}
+                            onScanComplete={(attendance) => {
+                                console.log('QR scanned:', attendance);
+                                // Refresh attendance data if needed
+                            }}
+                        />
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'attendance' && (
+                <div className="dashboard-section">
+                    <div className="event-selector">
+                        <label>Select Event:</label>
+                        <select 
+                            value={selectedEventId || ''} 
+                            onChange={(e) => setSelectedEventId(e.target.value)}
+                            className="event-select"
+                        >
+                            <option value="">Choose an event...</option>
+                            {allEvents
+                                .filter(event => event.status === 'published')
+                                .map(event => (
+                                    <option key={event._id} value={event._id}>
+                                        {event.eventName} ({event.eventType})
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </div>
+                    {!selectedEventId ? (
+                        <div className="empty-state">
+                            <p>Please select an event to view attendance data.</p>
+                        </div>
+                    ) : (
+                        <AttendanceDashboard eventId={selectedEventId} />
+                    )}
                 </div>
             )}
 

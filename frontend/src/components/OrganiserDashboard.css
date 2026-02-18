@@ -360,6 +360,29 @@
     text-transform: uppercase;
 }
 
+/* Event Selector */
+.event-selector {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.event-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.event-select {
+    width: 100%;
+    max-width: 400px;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    background: white;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .organiser-dashboard {
