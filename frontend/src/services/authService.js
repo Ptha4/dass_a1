@@ -30,6 +30,14 @@ const getCurrentUser = () => {
     return JSON.parse(localStorage.getItem('user'));
 };
 
+const getToken = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = user?.token || null;
+    console.log('authService.getToken - user:', user ? 'Present' : 'Missing');
+    console.log('authService.getToken - token:', token ? 'Present' : 'Missing');
+    return token;
+};
+
 const getProfile = (token) => {
     return axios.get(API_URL + 'user', {
         headers: { 'x-auth-token': token },
@@ -53,6 +61,7 @@ const authService = {
     login,
     logout,
     getCurrentUser,
+    getToken,
     getProfile,
     updateProfile,
     changePassword,

@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const MessageSchema = new mongoose.Schema({
     messageId: {
         type: String,
-        required: true,
+        required: false,
         unique: true
     },
     eventId: {
@@ -24,29 +24,14 @@ const MessageSchema = new mongoose.Schema({
     content: {
         type: String,
         required: true,
-        maxlength: 2000,
-        minlength: 1
+        trim: true,
+        maxlength: 2000
     },
     parentMessageId: {
-        type: String,
-        default: null,
-        ref: 'Message'
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Message',
+        default: null
     },
-    reactions: [{
-        userId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true
-        },
-        emoji: {
-            type: String,
-            required: true
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now
-        }
-    }],
     isPinned: {
         type: Boolean,
         default: false
@@ -61,18 +46,29 @@ const MessageSchema = new mongoose.Schema({
     },
     deletedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        default: null
     },
     deletedAt: {
-        type: Date
+        type: Date,
+        default: null
     },
     editHistory: [{
         content: String,
         editedAt: {
             type: Date,
             default: Date.now
+        },
+        editedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
         }
-    }]
+    }],
+    reactions: {
+        type: Map,
+        of: [mongoose.Schema.Types.ObjectId], // emoji -> array of user IDs
+        default: new Map()
+    }
 }, {
     timestamps: true
 });
@@ -82,7 +78,6 @@ MessageSchema.index({ eventId: 1, createdAt: -1 });
 MessageSchema.index({ eventId: 1, isPinned: -1, createdAt: -1 });
 MessageSchema.index({ eventId: 1, parentMessageId: 1, createdAt: 1 });
 MessageSchema.index({ senderId: 1, eventId: 1 });
-MessageSchema.index({ messageId: 1 }, { unique: true });
 
 // Virtual for getting replies
 MessageSchema.virtual('replies', {
@@ -116,12 +111,51 @@ MessageSchema.methods.canAnnounce = function(userId, eventOrganizerId) {
     return eventOrganizerId.toString() === userId.toString();
 };
 
-// Pre-save middleware to generate messageId
-MessageSchema.pre('save', async function(next) {
+// Method to add/remove reaction
+MessageSchema.methods.toggleReaction = function(emoji, userId) {
+    const emojiStr = emoji.toString();
+    
+    if (!this.reactions) {
+        this.reactions = new Map();
+    }
+    
+    const reactions = this.reactions.get(emojiStr) || [];
+    const userIndex = reactions.indexOf(userId);
+    
+    if (userIndex > -1) {
+        // Remove reaction
+        reactions.splice(userIndex, 1);
+        if (reactions.length === 0) {
+            this.reactions.delete(emojiStr);
+        } else {
+            this.reactions.set(emojiStr, reactions);
+        }
+        return { action: 'removed', emoji, reactions: this.reactions };
+    } else {
+        // Add reaction
+        reactions.push(userId);
+        this.reactions.set(emojiStr, reactions);
+        return { action: 'added', emoji, reactions: this.reactions };
+    }
+};
+
+// Method to get user's reaction to a message
+MessageSchema.methods.getUserReaction = function(userId) {
+    if (!this.reactions) return null;
+    
+    for (const [emoji, users] of this.reactions.entries()) {
+        if (users.includes(userId)) {
+            return emoji;
+        }
+    }
+    return null;
+};
+
+// Pre-save middleware to generate messageId (Mongoose 9+ uses async, no next callback)
+MessageSchema.pre('save', async function() {
     if (this.isNew && !this.messageId) {
         this.messageId = `MSG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
-    next();
 });
 
 module.exports = mongoose.model('Message', MessageSchema);

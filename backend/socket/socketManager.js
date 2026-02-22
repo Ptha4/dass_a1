@@ -21,14 +21,22 @@ class SocketManager {
         this.io.use(async (socket, next) => {
             try {
                 const token = socket.handshake.auth.token;
+                console.log('Socket auth token:', token ? 'Present' : 'Missing');
+                
                 if (!token) {
                     return next(new Error('Authentication token required'));
                 }
 
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                const user = await User.findById(decoded.user.id).select('-password');
+                console.log('JWT decoded:', decoded);
+                console.log('User ID from token:', decoded.user?.id);
+                
+                const user = await User.findById(decoded.user?.id).select('-password');
+                console.log('Database lookup result:', user);
+                console.log('User ID type:', typeof decoded.user?.id);
                 
                 if (!user) {
+                    console.log('User lookup failed for ID:', decoded.user?.id);
                     return next(new Error('User not found'));
                 }
 
@@ -72,15 +80,6 @@ class SocketManager {
                 }
             });
 
-            // Handle message reactions
-            socket.on('add-reaction', async (data) => {
-                try {
-                    await this.handleAddReaction(socket, data);
-                } catch (error) {
-                    socket.emit('error', { message: error.message });
-                }
-            });
-
             // Handle message editing
             socket.on('edit-message', async (data) => {
                 try {
@@ -94,6 +93,15 @@ class SocketManager {
             socket.on('delete-message', async (data) => {
                 try {
                     await this.handleDeleteMessage(socket, data);
+                } catch (error) {
+                    socket.emit('error', { message: error.message });
+                }
+            });
+
+            // Handle reactions
+            socket.on('add-reaction', async (data) => {
+                try {
+                    await this.handleAddReaction(socket, data);
                 } catch (error) {
                     socket.emit('error', { message: error.message });
                 }
@@ -211,47 +219,6 @@ class SocketManager {
         await this.createMessageNotifications(message, socket.user);
 
         console.log(`New message in event ${eventId} from ${socket.user.id}`);
-    }
-
-    async handleAddReaction(socket, data) {
-        const { messageId, emoji } = data;
-
-        const message = await Message.findById(messageId);
-        if (!message) {
-            throw new Error('Message not found');
-        }
-
-        // Verify access to event
-        const hasAccess = await this.verifyEventAccess(socket.user.id, message.eventId);
-        if (!hasAccess) {
-            throw new Error('Access denied');
-        }
-
-        // Check if reaction already exists
-        const existingReaction = message.reactions.find(
-            r => r.userId.toString() === socket.user.id && r.emoji === emoji
-        );
-
-        if (existingReaction) {
-            // Remove reaction
-            message.reactions = message.reactions.filter(
-                r => !(r.userId.toString() === socket.user.id && r.emoji === emoji)
-            );
-        } else {
-            // Add reaction
-            message.reactions.push({
-                userId: socket.user.id,
-                emoji
-            });
-        }
-
-        await message.save();
-
-        // Broadcast reaction update
-        this.io.to(message.eventId.toString()).emit('reaction-updated', {
-            messageId,
-            reactions: message.reactions
-        });
     }
 
     async handleEditMessage(socket, data) {
@@ -517,6 +484,56 @@ class SocketManager {
                 });
             }
         }
+    }
+
+    async handleAddReaction(socket, data) {
+        const { messageId, emoji } = data;
+        const userId = socket.user.id;
+
+        // Validate emoji
+        if (!emoji || typeof emoji !== 'string' || emoji.length > 10) {
+            throw new Error('Invalid emoji');
+        }
+
+        // Find the message
+        const Message = require('../models/Message');
+        const message = await Message.findById(messageId).populate('eventId', 'organizerId');
+        if (!message) {
+            throw new Error('Message not found');
+        }
+
+        // Toggle reaction
+        const result = message.toggleReaction(emoji, userId);
+        await message.save();
+
+        // Get user details
+        const User = require('../models/User');
+        const user = await User.findById(userId).select('firstName lastName');
+
+        // Create notification for message author (if not self-reaction)
+        const Notification = require('../models/Notification');
+        if (message.senderId.toString() !== userId) {
+            await Notification.createNotification({
+                userId: message.senderId,
+                eventId: message.eventId._id,
+                messageId: message._id,
+                type: 'REACTION',
+                senderId: userId,
+                senderName: `${user.firstName} ${user.lastName}`,
+                messagePreview: message.content.substring(0, 100),
+                parentMessageId: message.parentMessageId
+            });
+        }
+
+        // Broadcast reaction update to all users in the event
+        this.io.to(message.eventId.toString()).emit('reaction-updated', {
+            messageId: message._id,
+            action: result.action,
+            emoji: result.emoji,
+            reactions: Object.fromEntries(result.reactions),
+            userId: userId,
+            userName: `${user.firstName} ${user.lastName}`
+        });
     }
 
     // Method to get online users in an event

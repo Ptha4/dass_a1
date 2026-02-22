@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import authService from '../services/authService';
 import onboardingService from '../services/onboardingService';
+import passwordResetService from '../services/passwordResetService';
 
 const INTEREST_OPTIONS = [
     { value: 'cultural', label: 'Cultural' },
@@ -34,6 +35,15 @@ const Profile = () => {
     const [passwordSuccess, setPasswordSuccess] = useState(null);
     const [changingPassword, setChangingPassword] = useState(false);
 
+    // Organizer password reset request
+    const [resetClubName, setResetClubName] = useState('');
+    const [resetReason, setResetReason] = useState('');
+    const [resetSubmitting, setResetSubmitting] = useState(false);
+    const [resetError, setResetError] = useState(null);
+    const [resetSuccess, setResetSuccess] = useState(null);
+    const [myResetRequests, setMyResetRequests] = useState([]);
+    const [resetRequestsLoading, setResetRequestsLoading] = useState(false);
+
     const user = authService.getCurrentUser();
     const token = user?.token;
     const isParticipant = user && !user.isOrganiser && !user.isAdmin;
@@ -65,6 +75,49 @@ const Profile = () => {
         };
         load();
     }, [token]);
+
+    const loadMyResetRequests = () => {
+        if (!user?.isOrganiser || !token) return;
+        setResetRequestsLoading(true);
+        passwordResetService
+            .getMyPasswordResetRequests()
+            .then((data) => setMyResetRequests(data.requests || []))
+            .catch(() => setMyResetRequests([]))
+            .finally(() => setResetRequestsLoading(false));
+    };
+
+    useEffect(() => {
+        if (user?.isOrganiser) loadMyResetRequests();
+    }, [user?.isOrganiser, token]);
+
+    const handlePasswordResetRequest = async (e) => {
+        e.preventDefault();
+        setResetError(null);
+        setResetSuccess(null);
+        if (!resetClubName.trim() || !resetReason.trim()) {
+            setResetError('Club name and reason are required.');
+            return;
+        }
+        if (resetReason.trim().length < 10) {
+            setResetError('Reason must be at least 10 characters long.');
+            return;
+        }
+        setResetSubmitting(true);
+        try {
+            await passwordResetService.submitPasswordResetRequest({
+                clubName: resetClubName.trim(),
+                reason: resetReason.trim(),
+            });
+            setResetSuccess('Password reset request submitted. Please wait for admin approval.');
+            setResetClubName('');
+            setResetReason('');
+            loadMyResetRequests();
+        } catch (err) {
+            setResetError(err.response?.data?.message || err.message || 'Failed to submit request.');
+        } finally {
+            setResetSubmitting(false);
+        }
+    };
 
     const handleInterestToggle = (value) => {
         setSelectedInterests((prev) =>
@@ -221,6 +274,58 @@ const Profile = () => {
                 <div style={{ marginBottom: '1.5rem' }}>
                     {(profile.firstName || profile.lastName) && (
                         <p><strong>Name:</strong> {[profile.firstName, profile.lastName].filter(Boolean).join(' ')}</p>
+                    )}
+                </div>
+            )}
+
+            {/* Organizer: Request password reset from Admin */}
+            {user.isOrganiser && (
+                <div style={{ borderTop: '1px solid #eee', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>Password reset (organizers)</h2>
+                    <p style={{ color: '#555', fontSize: '14px', marginBottom: '1rem' }}>Request a password reset from the Admin. You can have only one pending request at a time.</p>
+                    {resetError && <p style={{ color: '#c00', marginBottom: '0.5rem' }}>{resetError}</p>}
+                    {resetSuccess && <p style={{ color: 'green', marginBottom: '0.5rem' }}>{resetSuccess}</p>}
+                    <form onSubmit={handlePasswordResetRequest}>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <label>Club name</label>
+                            <input
+                                type="text"
+                                value={resetClubName}
+                                onChange={(e) => setResetClubName(e.target.value)}
+                                placeholder="e.g. Tech Club"
+                                style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <label>Reason (min 10 characters)</label>
+                            <textarea
+                                value={resetReason}
+                                onChange={(e) => setResetReason(e.target.value)}
+                                placeholder="Explain why you need a password reset"
+                                rows={3}
+                                style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
+                            />
+                        </div>
+                        <button type="submit" disabled={resetSubmitting}>{resetSubmitting ? 'Submitting...' : 'Submit request'}</button>
+                    </form>
+                    <h3 style={{ fontSize: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>My password reset requests</h3>
+                    {resetRequestsLoading ? (
+                        <p style={{ color: '#666' }}>Loading…</p>
+                    ) : myResetRequests.length === 0 ? (
+                        <p style={{ color: '#666' }}>No requests yet.</p>
+                    ) : (
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                            {myResetRequests.map((req) => (
+                                <li key={req.id} style={{ padding: '0.75rem', border: '1px solid #eee', borderRadius: '6px', marginBottom: '0.5rem', background: '#fafafa' }}>
+                                    <strong>{req.clubName}</strong>
+                                    <span style={{ marginLeft: '0.5rem', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', textTransform: 'capitalize', background: req.status === 'pending' ? '#fff3cd' : req.status === 'approved' ? '#d4edda' : '#f8d7da', color: req.status === 'pending' ? '#856404' : req.status === 'approved' ? '#155724' : '#721c24' }}>
+                                        {req.status}
+                                    </span>
+                                    <p style={{ margin: '0.25rem 0 0', fontSize: '14px', color: '#555' }}>{new Date(req.dateOfRequest).toLocaleString()}</p>
+                                    {req.adminComments && <p style={{ margin: '0.25rem 0 0', fontSize: '13px', color: '#666' }}>Admin: {req.adminComments}</p>}
+                                </li>
+                            ))}
+                        </ul>
                     )}
                 </div>
             )}

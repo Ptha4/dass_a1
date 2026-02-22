@@ -16,6 +16,7 @@ import Profile from './components/Profile';
 import ClubsOrganizers from './components/ClubsOrganizers';
 import OrganizerDetail from './components/OrganizerDetail';
 import DashboardRedirect from './components/DashboardRedirect';
+import NotificationDropdown from './components/NotificationDropdown';
 import authService from './services/authService';
 import './App.css'; // Assuming you have some basic styling
 
@@ -57,6 +58,7 @@ function App() {
                                 <Link to="/events">Browse Events</Link>
                                 <Link to="/clubs">All clubs</Link>
                                 <Link to="/profile">Profile</Link>
+                                <NotificationDropdown />
                                 <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
                             </>
                         ) : (

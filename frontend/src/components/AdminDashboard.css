@@ -241,6 +241,21 @@
   color: #4b5563;
 }
 
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-rejected {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
 .actions-cell {
   display: flex;
   flex-wrap: wrap;

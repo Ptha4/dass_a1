@@ -18,7 +18,7 @@ const NotificationSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['NEW_MESSAGE', 'REPLY', 'ANNOUNCEMENT', 'MESSAGE_PINNED'],
+        enum: ['NEW_MESSAGE', 'REPLY', 'ANNOUNCEMENT', 'MESSAGE_PINNED', 'REACTION'],
         required: true
     },
     isRead: {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import adminService from '../services/adminService';
+import passwordResetService from '../services/passwordResetService';
 import './AdminDashboard.css';
 
 const CLUB_INTERESTS = ['cultural', 'technical', 'sports', 'others'];
@@ -11,6 +12,17 @@ const AdminDashboard = () => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [credentials, setCredentials] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+    // Password reset requests (admin)
+    const [resetRequests, setResetRequests] = useState([]);
+    const [resetPagination, setResetPagination] = useState(null);
+    const [resetStatusFilter, setResetStatusFilter] = useState(''); // '' | 'pending' | 'approved' | 'rejected'
+    const [resetLoading, setResetLoading] = useState(false);
+    const [processModal, setProcessModal] = useState(null); // { request, approved, adminComments }
+    const [processSubmitting, setProcessSubmitting] = useState(false);
+    const [newPasswordModal, setNewPasswordModal] = useState(null); // { organizerName, clubName, newPassword }
+    const [historyOrganizer, setHistoryOrganizer] = useState(null); // { organizerId, organizerName } -> show history
+    const [resetHistory, setResetHistory] = useState(null);
 
     const [form, setForm] = useState({
         firstName: '',
@@ -38,6 +50,66 @@ const AdminDashboard = () => {
     useEffect(() => {
         loadOrganizers();
     }, []);
+
+    const loadResetRequests = (status = resetStatusFilter, page = 1) => {
+        setResetLoading(true);
+        passwordResetService
+            .getAllPasswordResetRequests({ status: status || undefined, page, limit: 20 })
+            .then((data) => {
+                setResetRequests(data.requests || []);
+                setResetPagination(data.pagination || null);
+            })
+            .catch((err) => {
+                setError(err.response?.data?.message || err.message || 'Failed to load password reset requests');
+                setResetRequests([]);
+            })
+            .finally(() => setResetLoading(false));
+    };
+
+    useEffect(() => {
+        loadResetRequests();
+    }, [resetStatusFilter]);
+
+    const openProcessModal = (request, approved) => {
+        setProcessModal({ request, approved, adminComments: '' });
+    };
+
+    const handleProcessSubmit = () => {
+        if (!processModal) return;
+        setProcessSubmitting(true);
+        passwordResetService
+            .processPasswordResetRequest(processModal.request._id, {
+                approved: processModal.approved,
+                adminComments: processModal.adminComments || undefined,
+            })
+            .then((data) => {
+                setProcessModal(null);
+                loadResetRequests();
+                if (processModal.approved && data.request?.newPassword) {
+                    setNewPasswordModal({
+                        organizerName: data.request.organizerName,
+                        clubName: data.request.clubName,
+                        newPassword: data.request.newPassword,
+                    });
+                }
+            })
+            .catch((err) => setError(err.response?.data?.message || err.message || 'Failed to process request'))
+            .finally(() => setProcessSubmitting(false));
+    };
+
+    const loadOrganizerHistory = (organizerId) => {
+        passwordResetService
+            .getOrganizerResetHistory(organizerId)
+            .then((data) => setResetHistory(data))
+            .catch((err) => setError(err.response?.data?.message || err.message || 'Failed to load history'));
+    };
+
+    const openHistory = (req) => {
+        const organizerId = req.organizerId?._id || req.organizerId;
+        const name = req.organizerId ? [req.organizerId.firstName, req.organizerId.lastName].filter(Boolean).join(' ') : 'Organizer';
+        setHistoryOrganizer({ organizerId, organizerName: name });
+        loadOrganizerHistory(organizerId);
+    };
 
     const handleAddSubmit = (e) => {
         e.preventDefault();
@@ -263,6 +335,160 @@ const AdminDashboard = () => {
                         <div className="form-actions">
                             <button type="button" className="btn-danger" onClick={handleDeleteConfirm}>Delete permanently</button>
                             <button type="button" className="btn-secondary" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Password reset requests (admin) */}
+            <section className="admin-section">
+                <h3>Password reset requests</h3>
+                <p className="section-desc">Organizers request password resets here. View details, approve or reject with comments. On approval, a new password is generated for you to share with the organizer.</p>
+                <div className="form-actions" style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>Status:</span>
+                        <select
+                            value={resetStatusFilter}
+                            onChange={(e) => setResetStatusFilter(e.target.value)}
+                            style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
+                        >
+                            <option value="">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </label>
+                </div>
+                {resetLoading ? (
+                    <p>Loading…</p>
+                ) : resetRequests.length === 0 ? (
+                    <p>No password reset requests.</p>
+                ) : (
+                    <div className="organizers-table-wrap">
+                        <table className="organizers-table">
+                            <thead>
+                                <tr>
+                                    <th>Club name</th>
+                                    <th>Organizer</th>
+                                    <th>Date</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {resetRequests.map((req) => {
+                                    const org = req.organizerId;
+                                    const name = org ? [org.firstName, org.lastName].filter(Boolean).join(' ') : '—';
+                                    return (
+                                        <tr key={req._id}>
+                                            <td>{req.clubName || '—'}</td>
+                                            <td>{name}<br /><small style={{ color: '#666' }}>{org?.email}</small></td>
+                                            <td>{req.dateOfRequest ? new Date(req.dateOfRequest).toLocaleString() : '—'}</td>
+                                            <td style={{ maxWidth: 200 }}><span title={req.reason}>{req.reason ? (req.reason.length > 50 ? req.reason.slice(0, 50) + '…' : req.reason) : '—'}</span></td>
+                                            <td>
+                                                <span className={`status-badge status-${(req.status || '').toLowerCase()}`}>
+                                                    {req.status ? req.status.charAt(0).toUpperCase() + req.status.slice(1) : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="actions-cell">
+                                                {req.status === 'pending' && (
+                                                    <>
+                                                        <button type="button" className="btn-sm" onClick={() => openProcessModal(req, true)}>Approve</button>
+                                                        <button type="button" className="btn-sm btn-danger" onClick={() => openProcessModal(req, false)}>Reject</button>
+                                                    </>
+                                                )}
+                                                <button type="button" className="btn-sm" onClick={() => openHistory(req)} title="View history">History</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {resetPagination && resetPagination.pages > 1 && (
+                    <div className="form-actions" style={{ marginTop: 12 }}>
+                        <button type="button" className="btn-secondary" disabled={resetPagination.page <= 1} onClick={() => loadResetRequests(resetStatusFilter, resetPagination.page - 1)}>Previous</button>
+                        <span style={{ alignSelf: 'center' }}>Page {resetPagination.page} of {resetPagination.pages}</span>
+                        <button type="button" className="btn-secondary" disabled={resetPagination.page >= resetPagination.pages} onClick={() => loadResetRequests(resetStatusFilter, resetPagination.page + 1)}>Next</button>
+                    </div>
+                )}
+            </section>
+
+            {/* Process modal (approve/reject with comments) */}
+            {processModal && (
+                <div className="credentials-modal" role="dialog" aria-labelledby="process-title">
+                    <div className="credentials-box">
+                        <h3 id="process-title">{processModal.approved ? 'Approve' : 'Reject'} password reset request</h3>
+                        <p><strong>Club:</strong> {processModal.request.clubName}</p>
+                        <p><strong>Organizer:</strong> {processModal.request.organizerId ? [processModal.request.organizerId.firstName, processModal.request.organizerId.lastName].filter(Boolean).join(' ') : '—'}</p>
+                        <p><strong>Reason:</strong> {processModal.request.reason}</p>
+                        <label style={{ display: 'block', marginTop: 12, marginBottom: 8 }}>
+                            Admin comments (optional)
+                            <textarea
+                                value={processModal.adminComments}
+                                onChange={(e) => setProcessModal({ ...processModal, adminComments: e.target.value })}
+                                rows={3}
+                                placeholder="e.g. Password shared via email."
+                                style={{ display: 'block', width: '100%', marginTop: 4, padding: 8, border: '1px solid #ccc', borderRadius: 4 }}
+                            />
+                        </label>
+                        <div className="form-actions">
+                            <button type="button" className={processModal.approved ? 'btn-primary' : 'btn-danger'} onClick={handleProcessSubmit} disabled={processSubmitting}>
+                                {processSubmitting ? 'Processing...' : processModal.approved ? 'Approve & generate new password' : 'Reject'}
+                            </button>
+                            <button type="button" className="btn-secondary" onClick={() => setProcessModal(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* New password modal (after approval) */}
+            {newPasswordModal && (
+                <div className="credentials-modal" role="dialog" aria-labelledby="new-password-title">
+                    <div className="credentials-box">
+                        <h3 id="new-password-title">New password – share with organizer</h3>
+                        <p className="credentials-msg">Share this password with <strong>{newPasswordModal.organizerName}</strong> ({newPasswordModal.clubName}). They can log in with their existing email and this password.</p>
+                        <div className="credentials-row">
+                            <strong>New password:</strong>
+                            <code>{newPasswordModal.newPassword}</code>
+                            <button type="button" className="btn-copy" onClick={() => copyToClipboard(newPasswordModal.newPassword)}>Copy</button>
+                        </div>
+                        <button type="button" className="btn-primary" onClick={() => setNewPasswordModal(null)}>Done</button>
+                    </div>
+                </div>
+            )}
+
+            {/* Reset history modal */}
+            {historyOrganizer && (
+                <div className="credentials-modal" role="dialog" aria-labelledby="history-title">
+                    <div className="credentials-box" style={{ maxWidth: 560, maxHeight: '80vh', overflow: 'auto' }}>
+                        <h3 id="history-title">Password reset history – {historyOrganizer.organizerName}</h3>
+                        {!resetHistory ? (
+                            <p>Loading…</p>
+                        ) : (
+                            <div>
+                                {resetHistory.resetHistory && resetHistory.resetHistory.length > 0 ? (
+                                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                        {resetHistory.resetHistory.map((item, idx) => (
+                                            <li key={idx} style={{ padding: '12px', border: '1px solid #eee', borderRadius: 6, marginBottom: 8, background: '#fafafa' }}>
+                                                <strong>{item.clubName}</strong>
+                                                <span style={{ marginLeft: 8, padding: '2px 6px', borderRadius: 4, fontSize: 12, textTransform: 'capitalize', background: item.status === 'approved' ? '#d4edda' : item.status === 'rejected' ? '#f8d7da' : '#fff3cd' }}>{item.status}</span>
+                                                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#555' }}>{new Date(item.dateOfRequest).toLocaleString()}</p>
+                                                <p style={{ margin: '4px 0 0', fontSize: 13 }}>{item.reason}</p>
+                                                {item.adminComments && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>Admin: {item.adminComments}</p>}
+                                                {item.processedAt && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>Processed {new Date(item.processedAt).toLocaleString()}</p>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p>No reset history for this organizer.</p>
+                                )}
+                            </div>
+                        )}
+                        <div className="form-actions" style={{ marginTop: 16 }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setHistoryOrganizer(null); setResetHistory(null); }}>Close</button>
                         </div>
                     </div>
                 </div>

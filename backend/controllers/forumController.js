@@ -3,21 +3,28 @@ const Message = require('../models/Message');
 const Event = require('../models/Event');
 const Registration = require('../models/Registration');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
+
+async function verifyEventAccess(userId, eventId) {
+    const event = await Event.findById(eventId);
+    if (!event) return false;
+    if (event.organizerId && event.organizerId.toString() === userId) return true;
+    const registration = await Registration.findOne({
+        user: userId,
+        event: eventId,
+        status: { $in: ['confirmed', 'payment_approved'] }
+    });
+    return !!registration;
+}
 
 // @desc    Get all messages for an event
 // @route   GET /api/forum/messages/:eventId
-// @access  Private
+// @access  Private (requires forum access)
 const getEventMessages = asyncHandler(async (req, res) => {
     const { eventId } = req.params;
     const { page = 1, limit = 50, parentMessageId } = req.query;
     const userId = req.user.id;
-
-    // Verify user has access to this event
-    const hasAccess = await verifyEventAccess(userId, eventId);
-    if (!hasAccess) {
-        res.status(403);
-        throw new Error('Access denied: You are not registered for this event');
-    }
+    const userRole = req.userRole;
 
     // Build query
     const query = { 
@@ -37,7 +44,6 @@ const getEventMessages = asyncHandler(async (req, res) => {
     // Get messages with populated data
     const messages = await Message.find(query)
         .populate('senderId', 'firstName lastName')
-        .populate('reactions.userId', 'firstName lastName')
         .sort({ isPinned: -1, createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
@@ -58,7 +64,7 @@ const getEventMessages = asyncHandler(async (req, res) => {
             id: event._id,
             name: event.eventName,
             organizerId: event.organizerId,
-            isUserOrganizer: event.organizerId.toString() === userId
+            isUserOrganizer: userRole === 'organizer'
         },
         pagination: {
             page: parseInt(page),
@@ -297,58 +303,6 @@ const markAnnouncement = asyncHandler(async (req, res) => {
 });
 
 // @desc    Add/remove reaction to message
-// @route   POST /api/forum/messages/:messageId/reactions
-// @access  Private
-const addReaction = asyncHandler(async (req, res) => {
-    const { messageId } = req.params;
-    const { emoji } = req.body;
-    const userId = req.user.id;
-
-    if (!emoji) {
-        res.status(400);
-        throw new Error('Emoji is required');
-    }
-
-    const message = await Message.findById(messageId);
-    if (!message || message.isDeleted) {
-        res.status(404);
-        throw new Error('Message not found');
-    }
-
-    // Verify user has access to the event
-    const hasAccess = await verifyEventAccess(userId, message.eventId);
-    if (!hasAccess) {
-        res.status(403);
-        throw new Error('Access denied');
-    }
-
-    // Check if reaction already exists
-    const existingReaction = message.reactions.find(
-        r => r.userId.toString() === userId && r.emoji === emoji
-    );
-
-    if (existingReaction) {
-        // Remove reaction
-        message.reactions = message.reactions.filter(
-            r => !(r.userId.toString() === userId && r.emoji === emoji)
-        );
-    } else {
-        // Add reaction
-        message.reactions.push({
-            userId,
-            emoji
-        });
-    }
-
-    await message.save();
-    await message.populate('reactions.userId', 'firstName lastName');
-
-    res.json({
-        messageId,
-        reactions: message.reactions
-    });
-});
-
 // @desc    Get pinned messages for an event
 // @route   GET /api/forum/messages/:eventId/pinned
 // @access  Private
@@ -370,7 +324,7 @@ const getPinnedMessages = asyncHandler(async (req, res) => {
     })
     .populate('senderId', 'firstName lastName')
     .populate('reactions.userId', 'firstName lastName')
-    .sort({ pinnedAt: -1, createdAt: -1 });
+    .sort({ isPinned: -1, createdAt: -1 });
 
     res.json(messages);
 });
@@ -452,23 +406,62 @@ const searchMessages = asyncHandler(async (req, res) => {
     });
 });
 
-// Helper function to verify event access
-async function verifyEventAccess(userId, eventId) {
-    // Check if user is organizer of the event
-    const event = await Event.findById(eventId);
-    if (event && event.organizerId.toString() === userId) {
-        return true;
+// @desc    Add or remove reaction to a message
+// @route   POST /api/forum/messages/:messageId/reaction
+// @access  Private
+const addReaction = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user.id;
+
+    // Validate emoji (basic validation - you might want to use a library for this)
+    if (!emoji || typeof emoji !== 'string' || emoji.length > 10) {
+        res.status(400);
+        throw new Error('Invalid emoji');
     }
 
-    // Check if user is registered for the event
-    const registration = await Registration.findOne({
-        user: userId,
-        event: eventId,
-        status: { $in: ['confirmed', 'payment_approved'] }
-    });
+    // Find the message
+    const message = await Message.findById(messageId).populate('eventId', 'organizerId');
+    if (!message) {
+        res.status(404);
+        throw new Error('Message not found');
+    }
 
-    return !!registration;
-}
+    // Toggle reaction
+    const result = message.toggleReaction(emoji, userId);
+    await message.save();
+
+    // Get user details for notification
+    const user = await User.findById(userId).select('firstName lastName');
+    
+    // Create notification for message author (if not self-reaction)
+    if (message.senderId.toString() !== userId) {
+        await Notification.createNotification({
+            userId: message.senderId,
+            eventId: message.eventId._id,
+            messageId: message._id,
+            type: 'REACTION',
+            senderId: userId,
+            senderName: `${user.firstName} ${user.lastName}`,
+            messagePreview: message.content.substring(0, 100),
+            parentMessageId: message.parentMessageId
+        });
+    }
+
+    res.json({
+        success: true,
+        action: result.action,
+        emoji: result.emoji,
+        reactions: Object.fromEntries(result.reactions)
+    });
+});
+
+// @desc    Check if current user has forum access (organizer or registered)
+// @route   GET /api/forum/access/:eventId
+// @access  Private
+const checkForumAccess = asyncHandler(async (req, res) => {
+    res.json({ hasAccess: true });
+});
 
 module.exports = {
     getEventMessages,
@@ -478,8 +471,9 @@ module.exports = {
     deleteMessage,
     pinMessage,
     markAnnouncement,
-    addReaction,
     getPinnedMessages,
     getAnnouncements,
-    searchMessages
+    addReaction,
+    searchMessages,
+    checkForumAccess
 };

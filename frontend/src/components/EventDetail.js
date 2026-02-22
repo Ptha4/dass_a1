@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import eventService from '../services/eventService';
 import authService from '../services/authService';
+import forumService from '../services/forumService';
 import PaymentProofUpload from './PaymentProofUpload';
+import Forum from './Forum';
 
 const EventDetail = () => {
     const { id } = useParams();
@@ -20,6 +22,7 @@ const EventDetail = () => {
     const [currentRegistration, setCurrentRegistration] = useState(null); // Track current registration for payment proof
     const [showPaymentProof, setShowPaymentProof] = useState(false);
     const [merchQuantities, setMerchQuantities] = useState({}); // { itemId: quantity }
+    const [forumAccess, setForumAccess] = useState(null); // true | false | null (loading)
 
     const currentUser = authService.getCurrentUser();
     const isOrganizer = currentUser?.isOrganiser;
@@ -55,6 +58,23 @@ const EventDetail = () => {
 
         fetchEvent();
     }, [id]);
+
+    // Check forum access when event is loaded and user is logged in
+    useEffect(() => {
+        if (!event || !currentUser || event.status !== 'published') {
+            setForumAccess(null);
+            return;
+        }
+        const checkAccess = async () => {
+            try {
+                await forumService.checkForumAccess(id);
+                setForumAccess(true);
+            } catch (err) {
+                setForumAccess(err.response?.status === 403 ? false : null);
+            }
+        };
+        checkAccess();
+    }, [id, event, currentUser]);
 
     const handlePublish = async () => {
         const user = authService.getCurrentUser();
@@ -335,6 +355,28 @@ const EventDetail = () => {
                 {!currentUser && <p style={{ marginTop: '1rem', color: 'gray' }}>Please log in to register or purchase.</p>}
                 {isOrganizer && <p style={{ marginTop: '1rem', color: 'gray' }}>Organizers cannot register for their own events.</p>}
             </div>
+            
+            {/* Discussion Forum Section — only for registered participants and organizers */}
+            {currentUser && event.status === 'published' && (
+                <div className="forum-section mt-8">
+                    <hr className="my-8 border-gray-300" />
+                    {forumAccess === false && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                            <p className="font-medium">Join the discussion</p>
+                            <p className="text-sm mt-1">Register for this event to post messages, ask questions, and interact with other participants and organizers.</p>
+                        </div>
+                    )}
+                    {forumAccess === true && (
+                        <Forum 
+                            eventId={id} 
+                            isUserOrganizer={isOrganizer}
+                        />
+                    )}
+                    {forumAccess === null && (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-gray-600 text-sm">Checking forum access...</div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
