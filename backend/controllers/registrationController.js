@@ -160,58 +160,27 @@ const registerEvent = asyncHandler(async (req, res) => {
             user: req.user.id,
             event: eventId,
             purchasedItems: itemsToPurchase,
-            status: 'confirmed',
+            status: 'payment_pending',
             totalCost
         });
         await registration.save();
 
-        // Generate Ticket for Merch Event
-        const ticketId = uuidv4();
-        const qrCodeContent = {
-            ticketId,
-            userId: req.user.id,
-            eventId: event._id,
-            eventType: event.eventType,
-            purchasedItems: itemsToPurchase.map(item => ({ name: item.item.itemName, qty: item.quantity }))
-        };
-        const qrCodeDataURL = await generateQrCodeDataURL(qrCodeContent);
-
-        ticket = new Ticket({
-            registration: registration._id,
-            event: event._id,
-            user: req.user.id,
-            ticketId,
-            qrCodeData: qrCodeDataURL,
-            eventName: event.eventName,
-            eventDate: event.eventStartDate, // Using eventStartDate for ticket
-            eventLocation: event.location,
-            participantName: `${userDetails.firstName} ${userDetails.lastName}`,
-            participantEmail: userDetails.email,
-            purchasedItemsDetails: itemsToPurchase.map(item => ({ itemName: item.item.itemName, quantity: item.quantity }))
-        });
-        await ticket.save();
-
-        registration.ticket = ticket._id;
-        await registration.save();
-
-        // Send confirmation email with ticket
+        // Send confirmation email for merch registration (no ticket yet)
         const emailHtml = `
-            <h1>Merchandise Purchase Confirmation & Event Ticket</h1>
+            <h1>Merchandise Registration Confirmation</h1>
             <p>Dear ${userDetails.firstName} ${userDetails.lastName},</p>
-            <p>Thank you for your purchase and registration for ${event.eventName}!</p>
+            <p>Thank you for registering for ${event.eventName}!</p>
             <p><strong>Event:</strong> ${event.eventName}</p>
             <p><strong>Date:</strong> ${event.eventStartDate.toDateString()}</p>
             <p><strong>Location:</strong> ${event.location}</p>
-            <p><strong>Ticket ID:</strong> ${ticketId}</p>
+            <p><strong>Total Cost:</strong> ₹${totalCost}</p>
             <p><strong>Purchased Items:</strong></p>
             <ul>
-                ${itemsToPurchase.map(item => `<li>${item.item.itemName} (x${item.quantity})</li>`).join('')}
+                ${itemsToPurchase.map(item => `<li>${item.item.itemName} (x${item.quantity}) - ₹${item.quantity * item.price}</li>`).join('')}
             </ul>
-            <p>Please find your QR code ticket attached or embedded below:</p>
-            <img src="${qrCodeDataURL}" alt="QR Code Ticket" />
-            <p>We look forward to seeing you!</p>
+            <p>Please upload your payment proof to complete your registration. You will receive your ticket after payment approval.</p>
         `;
-        await sendEmail(userDetails.email, `Your Merch Purchase & Ticket for ${event.eventName}`, emailHtml);
+        await sendEmail(userDetails.email, `Registration Confirmation for ${event.eventName}`, emailHtml);
 
     } else { // Normal or Ticket Event
         registration = new Registration({
@@ -248,23 +217,37 @@ const registerEvent = asyncHandler(async (req, res) => {
         registration.ticket = ticket._id;
         await registration.save();
 
-        // Send confirmation email with ticket
-        const emailHtml = `
-            <h1>Event Registration Confirmation & Ticket</h1>
-            <p>Dear ${userDetails.firstName} ${userDetails.lastName},</p>
-            <p>Thank you for registering for ${event.eventName}!</p>
-            <p><strong>Event:</strong> ${event.eventName}</p>
-            <p><strong>Date:</strong> ${event.eventStartDate.toDateString()}</p>
-            <p><strong>Location:</strong> ${event.location}</p>
-            <p><strong>Ticket ID:</strong> ${ticketId}</p>
-            <p>Please find your QR code ticket attached or embedded below:</p>
-            <img src="${qrCodeDataURL}" alt="QR Code Ticket" />
-            <p>We look forward to seeing you!</p>
-        `;
-        await sendEmail(userDetails.email, `Your Ticket for ${event.eventName}`, emailHtml);
+        // Send confirmation email with ticket (commented out for now)
+        // const emailHtml = `
+        //     <h1>Event Registration Confirmation & Ticket</h1>
+        //     <p>Dear ${userDetails.firstName} ${userDetails.lastName},</p>
+        //     <p>Thank you for registering for ${event.eventName}!</p>
+        //     <p><strong>Event:</strong> ${event.eventName}</p>
+        //     <p><strong>Date:</strong> ${event.eventStartDate.toDateString()}</p>
+        //     <p><strong>Location:</strong> ${event.location}</p>
+        //     <p><strong>Ticket ID:</strong> ${ticketId}</p>
+        //     <p>Please find your QR code ticket attached or embedded below:</p>
+        //     <img src="${qrCodeDataURL}" alt="QR Code Ticket" />
+        //     <p>We look forward to seeing you!</p>
+        // `;
+        // await sendEmail(userDetails.email, `Your Ticket for ${event.eventName}`, emailHtml);
     }
 
-    res.status(201).json({ message: 'Registration successful and ticket sent!', registration, ticket });
+    const responseData = { 
+        message: event.eventType === 'merch' 
+            ? 'Registration successful! Please upload payment proof to receive your ticket.' 
+            : 'Registration successful and ticket sent!', 
+        registration: {
+            ...registration.toObject(),
+            _id: registration._id
+        }
+    };
+    
+    if (ticket) {
+        responseData.ticket = ticket;
+    }
+    
+    res.status(201).json(responseData);
 });
 
 // @desc    Get user's registrations/tickets
@@ -284,6 +267,11 @@ const getMyTickets = asyncHandler(async (req, res) => {
 const uploadPaymentProof = asyncHandler(async (req, res) => {
     const registrationId = req.params.registrationId;
     
+    console.log('=== UPLOAD PAYMENT PROOF CONTROLLER ===');
+    console.log('registrationId:', registrationId);
+    console.log('req.file:', req.file);
+    console.log('req.user.id:', req.user?.id);
+    
     if (!req.file) {
         res.status(400);
         throw new Error('No payment proof image uploaded');
@@ -291,6 +279,8 @@ const uploadPaymentProof = asyncHandler(async (req, res) => {
 
     const registration = await Registration.findById(registrationId)
         .populate('event');
+
+    console.log('Found registration:', registration);
 
     if (!registration) {
         res.status(404);
@@ -311,6 +301,7 @@ const uploadPaymentProof = asyncHandler(async (req, res) => {
 
     // Check if payment proof has already been uploaded
     if (registration.paymentProof?.proofImage) {
+        console.log('Payment proof already exists');
         res.status(400);
         throw new Error('Payment proof has already been uploaded');
     }
@@ -321,8 +312,12 @@ const uploadPaymentProof = asyncHandler(async (req, res) => {
         uploadedAt: new Date()
     };
     
+    console.log('Updating registration with payment proof:', registration.paymentProof);
+    
     registration.status = 'payment_pending';
     await registration.save();
+
+    console.log('Registration saved successfully');
 
     res.json({
         message: 'Payment proof uploaded successfully. Waiting for approval.',
@@ -344,11 +339,18 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
         status: 'payment_pending',
         'paymentProof.proofImage': { $exists: true }
     })
-    .populate('event', 'eventName eventType')
+    .populate({
+        path: 'event',
+        match: { organizerId: req.user.id },
+        select: 'eventName eventType'
+    })
     .populate('user', 'firstName lastName email')
     .sort({ 'paymentProof.uploadedAt': -1 });
 
-    res.json(registrations);
+    // Filter out registrations where event doesn't belong to this organizer
+    const filteredRegistrations = registrations.filter(reg => reg.event !== null);
+
+    res.json(filteredRegistrations);
 });
 
 // @desc    Approve or reject payment
@@ -413,11 +415,11 @@ const approvePayment = asyncHandler(async (req, res) => {
         
         const qrCodeContent = {
             ticketId,
-            event: registration.event.eventName,
+            eventId: registration.event._id,
             eventType: registration.event.eventType,
             purchasedItems: registration.purchasedItems.map(item => ({ 
-                name: purchasedItem.item.itemName, 
-                qty: purchasedItem.quantity 
+                name: item.item.itemName, 
+                qty: item.quantity 
             }))
         };
         
@@ -435,8 +437,8 @@ const approvePayment = asyncHandler(async (req, res) => {
             participantName: `${userDetails.firstName} ${userDetails.lastName}`,
             participantEmail: userDetails.email,
             purchasedItemsDetails: registration.purchasedItems.map(item => ({ 
-                itemName: purchasedItem.item.itemName, 
-                quantity: purchasedItem.quantity 
+                itemName: item.item.itemName, 
+                quantity: item.quantity 
             }))
         });
         

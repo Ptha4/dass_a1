@@ -145,7 +145,9 @@ const EventDetail = () => {
         setRegistrationSuccess(false);
 
         try {
-            const registration = await eventService.registerForEvent(event._id, purchasedItems, token);
+            const result = await eventService.registerForEvent(event._id, purchasedItems, token);
+            const registration = result?.registration ?? result;
+            console.log('Registration response:', result);
             setCurrentRegistration(registration);
             
             // For merch events, show payment proof upload
@@ -268,7 +270,7 @@ const EventDetail = () => {
                         {/* Show payment proof upload for merch events */}
                         {showPaymentProof && currentRegistration && (
                             <PaymentProofUpload 
-                                registrationId={currentRegistration._id} 
+                                registrationId={currentRegistration._id || currentRegistration.id} 
                                 onUploadSuccess={handlePaymentProofUploaded}
                             />
                         )}

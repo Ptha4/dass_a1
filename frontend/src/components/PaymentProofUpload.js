@@ -10,6 +10,8 @@ const PaymentProofUpload = ({ registrationId, onUploadSuccess }) => {
     const [success, setSuccess] = useState('');
     const token = authService.getCurrentUser()?.token;
 
+    console.log('PaymentProofUpload - registrationId:', registrationId);
+
     const handleFileSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -33,6 +35,11 @@ const PaymentProofUpload = ({ registrationId, onUploadSuccess }) => {
 
     const handleUpload = async () => {
         if (!selectedFile || !token) return;
+        
+        if (!registrationId) {
+            setError('Registration ID is missing. Please try registering again.');
+            return;
+        }
         
         setUploading(true);
         setError('');
@@ -69,8 +76,14 @@ const PaymentProofUpload = ({ registrationId, onUploadSuccess }) => {
 
     return (
         <div className="payment-proof-upload">
-            <h4>Upload Payment Proof</h4>
-            <p>Please upload a screenshot or photo of your payment confirmation.</p>
+            <h3>Upload Payment Proof</h3>
+            <p>Please upload a screenshot or image of your payment confirmation.</p>
+            
+            {!registrationId && (
+                <div className="error-message">
+                    <span>⚠️ Registration ID is missing. Please try registering again.</span>
+                </div>
+            )}
             
             {error && (
                 <div className="error-message">

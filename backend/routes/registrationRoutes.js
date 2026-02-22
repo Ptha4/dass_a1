@@ -42,8 +42,24 @@ const upload = multer({
 router.post('/:eventId', protect, registerEvent);
 router.get('/my-tickets', protect, getMyTickets);
 
-// Payment proof upload
-router.post('/:registrationId/payment-proof', protect, upload.single('paymentProof'), uploadPaymentProof);
+// Payment proof upload - MUST come before generic /:eventId route
+router.post('/:registrationId/payment-proof', protect, (req, res, next) => {
+    console.log('=== PAYMENT PROOF UPLOAD DEBUG ===');
+    console.log('req.params.registrationId:', req.params.registrationId);
+    
+    upload.single('paymentProof')(req, res, (err) => {
+        if (err) {
+            console.error('Multer error:', err);
+            return res.status(400).json({ message: err.message });
+        }
+        if (!req.file) {
+            console.error('No file uploaded');
+            return res.status(400).json({ message: 'No payment proof image uploaded' });
+        }
+        console.log('File uploaded successfully:', req.file);
+        next();
+    });
+}, uploadPaymentProof);
 
 // Organizer payment approval endpoints
 router.get('/pending-approvals', protect, getPendingApprovals);

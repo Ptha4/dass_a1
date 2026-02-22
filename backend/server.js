@@ -4,10 +4,16 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const http = require('http');
+const socketIo = require('socket.io');
 const auth = require('./middleware/auth');
 const eventRoutes = require('./routes/eventRoutes'); // Import event routes
 const registrationRoutes = require('./routes/registrationRoutes'); // Import registration routes
 const attendanceRoutes = require('./routes/attendanceRoutes'); // Import attendance routes
+const passwordResetRoutes = require('./routes/passwordResetRoutes'); // Import password reset routes
+const forumRoutes = require('./routes/forumRoutes'); // Import forum routes
+const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
+const SocketManager = require('./socket/socketManager'); // Import Socket Manager
 const path = require('path');
 
 dotenv.config();
@@ -32,6 +38,9 @@ const Event = require('./models/Event'); // Import Event model
 app.use('/api/events', eventRoutes);
 app.use('/api/register', registrationRoutes); // Use registration routes
 app.use('/api/attendance', attendanceRoutes); // Use attendance routes
+app.use('/api/password-reset', passwordResetRoutes); // Use password reset routes
+app.use('/api/forum', forumRoutes); // Use forum routes
+app.use('/api/notifications', notificationRoutes); // Use notification routes
 
 // Register Route
 app.post('/api/auth/register', async (req, res) => {
@@ -432,6 +441,22 @@ app.use((err, req, res, next) => {
     res.status(status).json({ message: err.message || 'Server Error' });
 });
 
+// Create HTTP server and integrate Socket.IO
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true
+    }
+});
+
+// Initialize Socket Manager
+const socketManager = new SocketManager(io);
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+    console.log(`Socket.IO server initialized`);
+});

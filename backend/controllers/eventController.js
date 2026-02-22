@@ -85,7 +85,8 @@ const getEventAnalytics = asyncHandler(async (req, res) => {
             .populate({
                 path: 'registrations',
                 match: { status: 'confirmed' },
-                select: '_id'
+                select: '_id',
+                strictPopulate: false // Disable strict populate check
             });
 
         console.log('Recent events found:', recentEvents.length);

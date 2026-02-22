@@ -3,6 +3,7 @@ const Attendance = require('../models/Attendance');
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
 const User = require('../models/User');
+const Ticket = require('../models/Ticket');
 const QRCode = require('qrcode');
 
 // @desc    Scan QR code and mark attendance
@@ -34,15 +35,50 @@ const scanQRCode = asyncHandler(async (req, res) => {
         throw new Error('Invalid QR code format');
     }
 
+    // Extract event ID from QR data (handle both eventId and event fields)
+    const qrEventId = parsedQRData.eventId || parsedQRData.event;
+    
     console.log('Parsed QR data:', parsedQRData);
+    console.log('Extracted QR Event ID:', qrEventId);
+    
+    if (!qrEventId) {
+        res.status(400);
+        throw new Error('QR code missing event information');
+    }
 
-    // Find registration by ticket ID
-    const registration = await Registration.findOne({ 
-        ticketId: parsedQRData.ticketId,
-        event: eventId 
-    })
-    .populate('participant', 'firstName lastName email')
-    .populate('event', 'eventName');
+    // Find ticket by ticket ID first
+    const ticket = await Ticket.findOne({ ticketId: parsedQRData.ticketId })
+        .populate('registration');
+
+    if (!ticket) {
+        res.status(404);
+        throw new Error('Ticket not found');
+    }
+
+    // Verify ticket belongs to the correct event
+    // Handle both event ID and event name for backward compatibility
+    let eventMatches = false;
+    
+    if (qrEventId === ticket.event.toString()) {
+        // QR contains event ID and it matches
+        eventMatches = true;
+    } else if (qrEventId.length !== 24) {
+        // QR contains event name (not ObjectId format), check against event name
+        const ticketEvent = await Event.findById(ticket.event);
+        if (ticketEvent && ticketEvent.eventName === qrEventId) {
+            eventMatches = true;
+        }
+    }
+    
+    if (!eventMatches) {
+        res.status(400);
+        throw new Error('Ticket does not belong to this event');
+    }
+
+    // Get the registration from the ticket
+    const registration = await Registration.findById(ticket.registration._id)
+        .populate('user', 'firstName lastName email')
+        .populate('event', 'eventName');
 
     if (!registration) {
         res.status(404);
@@ -51,7 +87,7 @@ const scanQRCode = asyncHandler(async (req, res) => {
 
     // Check if already scanned
     const existingAttendance = await Attendance.findOne({
-        event: eventId,
+        event: ticket.event,
         participant: registration.user,
         status: { $in: ['scanned', 'manual'] }
     });
@@ -63,7 +99,7 @@ const scanQRCode = asyncHandler(async (req, res) => {
 
     // Create attendance record
     const attendance = new Attendance({
-        event: eventId,
+        event: ticket.event,
         registration: registration._id,
         participant: registration.user,
         scannedBy: organizerId,
@@ -86,7 +122,7 @@ const scanQRCode = asyncHandler(async (req, res) => {
         attendance: {
             _id: attendance._id,
             scannedAt: attendance.scannedAt,
-            participant: registration.participant,
+            participant: registration.user,
             eventName: registration.event.eventName,
             ticketId: parsedQRData.ticketId
         }
