@@ -4,7 +4,7 @@ import eventService from '../services/eventService';
 import authService from '../services/authService';
 
 const EVENT_TYPES = [
-    { value: '', label: 'All types' },
+    { value: '', label: 'All events' }, // Updated label
     { value: 'normal', label: 'Normal' },
     { value: 'merch', label: 'Merch' },
     { value: 'ticket', label: 'Ticket' },
@@ -27,6 +27,7 @@ const EventDashboard = () => {
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [followedOnly, setFollowedOnly] = useState(false); // false = All events, true = Followed clubs only
+    const [showTrending, setShowTrending] = useState(false); // Toggle for trending view
     const navigate = useNavigate();
 
     const user = authService.getCurrentUser();
@@ -43,6 +44,7 @@ const EventDashboard = () => {
                 ...(fromDate && { fromDate }),
                 ...(toDate && { toDate }),
                 ...(followedOnly && { followedOnly: true }),
+                ...(showTrending && { trending: '24h' }), // Add trending parameter
             };
             const token = user?.token || null;
             const data = await eventService.getEvents(params, token);
@@ -53,7 +55,7 @@ const EventDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [search, eventType, eligibility, fromDate, toDate, followedOnly, user?.token]);
+    }, [search, eventType, eligibility, fromDate, toDate, followedOnly, showTrending, user?.token]);
 
     useEffect(() => {
         fetchEvents();
@@ -66,6 +68,7 @@ const EventDashboard = () => {
         setFromDate('');
         setToDate('');
         setFollowedOnly(false);
+        setShowTrending(false); // Clear trending state
     };
 
     return (
@@ -163,6 +166,27 @@ const EventDashboard = () => {
                         </label>
                     </div>
                 )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <label style={{ fontWeight: 500 }}>View:</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                        <input
+                            type="radio"
+                            name="trending"
+                            checked={!showTrending}
+                            onChange={() => setShowTrending(false)}
+                        />
+                        All events
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                        <input
+                            type="radio"
+                            name="trending"
+                            checked={showTrending}
+                            onChange={() => setShowTrending(true)}
+                        />
+                        Trending (Top 5/24h)
+                    </label>
+                </div>
                 <button type="button" onClick={handleClearFilters} style={{ padding: '0.5rem 0.75rem', background: '#eee' }}>
                     Clear filters
                 </button>
@@ -187,9 +211,9 @@ const EventDashboard = () => {
                                 Events are ordered based on your preferences:
                             </p>
                             <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
-                                <li>🏆 <strong>Followed Clubs</strong> - Events from clubs you follow appear first</li>
-                                <li>🎨 <strong>Matching Interests</strong> - Events matching your interests are prioritized</li>
-                                <li>📅 <strong>Upcoming Events</strong> - Events happening soon are highlighted</li>
+                                <li> <strong>Followed Clubs</strong> - Events from clubs you follow appear first</li>
+                                <li> <strong>Matching Interests</strong> - Events matching your interests are prioritized</li>
+                                <li><strong>Upcoming Events</strong> - Events happening soon are highlighted</li>
                             </ul>
                         </div>
                     )}
@@ -218,9 +242,9 @@ const EventDashboard = () => {
                                         fontSize: '0.75rem',
                                         fontWeight: 'bold'
                                     }}>
-                                        {event._preferenceScore >= 100 ? '🏆 Top Match' : 
-                                         event._preferenceScore >= 50 ? '🎨 Good Match' : 
-                                         event._preferenceScore >= 25 ? '📅 Coming Soon' : '⭐ Recommended'}
+                                        {event._preferenceScore >= 100 ? ' Top Match' : 
+                                         event._preferenceScore >= 50 ? ' Good Match' : 
+                                         event._preferenceScore >= 25 ? ' Coming Soon' : ' Recommended'}
                                     </div>
                                 )}
                                 

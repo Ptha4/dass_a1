@@ -38,7 +38,7 @@ const createEvent = async (eventData, token) => {
     }
 };
 
-// Get all events (optional params: search, eventType, eligibility, fromDate, toDate, followedOnly)
+// Get all events (optional params: search, eventType, eligibility, fromDate, toDate, followedOnly, trending)
 const getEvents = (params = {}, token = null) => {
     console.log('getEvents called with params:', params);
     const config = token ? { headers: { 'x-auth-token': token } } : {};
@@ -49,6 +49,7 @@ const getEvents = (params = {}, token = null) => {
     if (params.fromDate) searchParams.set('fromDate', params.fromDate);
     if (params.toDate) searchParams.set('toDate', params.toDate);
     if (params.followedOnly === true) searchParams.set('followedOnly', 'true');
+    if (params.trending) searchParams.set('trending', params.trending);
     if (params.myDrafts === true) searchParams.set('myDrafts', 'true');
     if (params.myEvents === true) searchParams.set('myEvents', 'true');
     if (params.organizerId) searchParams.set('organizerId', params.organizerId);

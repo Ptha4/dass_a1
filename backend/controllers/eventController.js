@@ -234,7 +234,7 @@ const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // @route   GET /api/events?search=&eventType=&eligibility=&fromDate=&toDate=&followedOnly=
 // @access  Public (optional auth for followedOnly)
 const getEvents = asyncHandler(async (req, res) => {
-    const { search, eventType, eligibility, fromDate, toDate, followedOnly, myDrafts, myEvents } = req.query;
+    const { search, eventType, eligibility, fromDate, toDate, followedOnly, myDrafts, myEvents, trending } = req.query;
     console.log('getEvents called with query:', req.query);
     console.log('User authenticated:', req.user ? 'Yes' : 'No');
     if (req.user) console.log('User ID:', req.user.id);
@@ -345,7 +345,44 @@ const getEvents = asyncHandler(async (req, res) => {
     if (req.query.organizerId && String(req.query.organizerId).trim()) {
         query.organizerId = req.query.organizerId.trim();
     }
-
+    
+    // Trending logic: Show top 5 events from last 24 hours
+    if (trending === '24h') {
+        console.log('Fetching trending events (top 5/24h)');
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        // Get events with most registrations in last 24 hours
+        const trendingEvents = await Registration.aggregate([
+            {
+                $match: {
+                    event: { $ne: null },
+                    registrationDate: { $gte: twentyFourHoursAgo }
+                }
+            },
+            {
+                $group: { _id: '$event', registrationCount: { $sum: 1 } }
+            },
+            {
+                $sort: { registrationCount: -1 }
+            },
+            {
+                $limit: 5
+            }
+        ]);
+        
+        // Get event details for trending events
+        const trendingEventIds = trendingEvents.map(te => te._id);
+        const events = await Event.find({ 
+            _id: { $in: trendingEventIds }
+        })
+            .populate('organizerId', 'firstName lastName email clubInterest')
+            .lean();
+        
+        console.log('Trending events found:', events.length);
+        res.json(events);
+        return;
+    }
+    
     // Preference-based sorting for participants
     let sortOptions = {};
     
