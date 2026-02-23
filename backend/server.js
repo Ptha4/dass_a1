@@ -45,6 +45,9 @@ app.use('/api/notifications', notificationRoutes); // Use notification routes
 
 // Register Route
 app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {
+    console.log('Register route called');
+    console.log('Request body:', req.body);
+    
     const { 
         firstName, 
         lastName, 
@@ -62,6 +65,7 @@ app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {
     try {
         let user = await User.findOne({ email });
         if (user) {
+            console.log('User already exists validation failed');
             return res.status(400).json({ msg: 'User already exists' });
         }
 
@@ -70,6 +74,7 @@ app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {
             participantType === 'IIIT Participant' &&
             !['@iiit.ac.in','@research.iiit.ac.in','@students.iiit.ac.in'].some(domain => email.endsWith(domain))
         ) {
+            console.log('IIIT email validation failed');
             return res.status(400).json({ msg: 'IIIT Participants must use an IIIT-issued email ID' });
         }
 
@@ -125,19 +130,25 @@ app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {
 
 // Login Route
 app.post('/api/auth/login', verifyRecaptcha, async (req, res) => {
+    console.log('Login route called');
+    console.log('Request body:', req.body);
+    
     const { email, password } = req.body;
 
     try {
         let user = await User.findOne({ email });
         if (!user) {
+            console.log('User not found validation failed');
             return res.status(400).json({ msg: 'Invalid Credentials' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log('Password mismatch validation failed');
             return res.status(400).json({ msg: 'Invalid Credentials' });
         }
         if (user.disabled) {
+            console.log('Account disabled validation failed');
             return res.status(403).json({ msg: 'Account is disabled. Contact admin.' });
         }
         if (user.archived) {

@@ -5,6 +5,7 @@ import authService from '../services/authService';
 import forumService from '../services/forumService';
 import PaymentProofUpload from './PaymentProofUpload';
 import Forum from './Forum';
+import CustomRegistrationForm from './CustomRegistrationForm';
 
 const EventDetail = () => {
     const { id } = useParams();
@@ -23,6 +24,8 @@ const EventDetail = () => {
     const [showPaymentProof, setShowPaymentProof] = useState(false);
     const [merchQuantities, setMerchQuantities] = useState({}); // { itemId: quantity }
     const [forumAccess, setForumAccess] = useState(null); // true | false | null (loading)
+    const [showCustomForm, setShowCustomForm] = useState(false); // Show custom form modal/section
+    const [isRegistered, setIsRegistered] = useState(false); // Track if user is already registered
 
     const currentUser = authService.getCurrentUser();
     const isOrganizer = currentUser?.isOrganiser;
@@ -58,6 +61,26 @@ const EventDetail = () => {
 
         fetchEvent();
     }, [id]);
+
+    // Check registration status when event is loaded and user is logged in
+    useEffect(() => {
+        if (event && currentUser && isParticipant) {
+            const checkRegistration = async () => {
+                try {
+                    const token = currentUser.token;
+                    const status = await eventService.checkRegistrationStatus(id, token);
+                    setIsRegistered(status.isRegistered);
+                    if (status.isRegistered && status.registration) {
+                        setCurrentRegistration(status.registration);
+                    }
+                } catch (err) {
+                    console.error('Error checking registration status:', err);
+                    setIsRegistered(false);
+                }
+            };
+            checkRegistration();
+        }
+    }, [event, currentUser, id, isParticipant]);
 
     // Check forum access when event is loaded and user is logged in
     useEffect(() => {
@@ -107,12 +130,24 @@ const EventDetail = () => {
             return;
         }
 
+        // Check if event has a custom registration form
+        if (event.registrationForm && event.registrationForm.length > 0) {
+            // Show custom form instead of direct registration
+            setShowCustomForm(true);
+            return;
+        }
+
+        // Direct registration if no custom form
+        performRegistration(null, token);
+    };
+
+    const performRegistration = async (customFormResponses, token) => {
         setRegistrationLoading(true);
         setRegistrationError(null);
         setRegistrationSuccess(false);
 
         try {
-            await eventService.registerForEvent(event._id, null, token);
+            await eventService.registerForEvent(event._id, null, token, customFormResponses);
             setRegistrationSuccess(true);
             // Optionally, navigate to a success page or participation history
             navigate('/participant-dashboard');
@@ -120,7 +155,14 @@ const EventDetail = () => {
             setRegistrationError(err.response?.data?.message || err.message || 'Failed to register for event.');
         } finally {
             setRegistrationLoading(false);
+            setShowCustomForm(false);
         }
+    };
+
+    const handleCustomFormSubmit = (formData) => {
+        const user = authService.getCurrentUser();
+        const token = user?.token;
+        performRegistration(formData, token);
     };
 
     const handleMerchQuantityChange = (itemId, quantity) => {
@@ -298,55 +340,81 @@ const EventDetail = () => {
                         {isNormalEvent && (
                             <>
                                 <h3>Register for Event</h3>
-                                <button
-                                    onClick={handleRegister}
-                                    disabled={registrationLoading}
-                                    className="register-button"
-                                >
-                                    {registrationLoading ? 'Registering...' : 'Register Now'}
-                                </button>
+                                {isRegistered ? (
+                                    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                                        <p className="font-medium">✓ You are already registered for this event</p>
+                                        <p className="text-sm mt-1">Registration Date: {new Date(currentRegistration?.registrationDate).toLocaleDateString()}</p>
+                                        <p className="text-sm">Status: {currentRegistration?.status}</p>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={handleRegister}
+                                        disabled={registrationLoading}
+                                        className="register-button"
+                                    >
+                                        {registrationLoading ? 'Registering...' : 'Register Now'}
+                                    </button>
+                                )}
                             </>
                         )}
 
                         {isMerchEvent && event.items && event.items.length > 0 && (
                             <>
                                 <h3>Purchase Merchandise</h3>
-                                {event.items.map(item => (
-                                    <div key={item._id} className="merch-item-selection" style={{ marginBottom: '1rem' }}>
-                                        <p>
-                                            <strong>{item.itemName}</strong>{' '}
-                                            (Price: ₹{Number(item.price || 0).toFixed(2)} · Stock: {item.stockQuantity})
-                                        </p>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max={item.stockQuantity}
-                                            value={merchQuantities[item._id] || 0}
-                                            onChange={(e) => handleMerchQuantityChange(item._id, e.target.value)}
-                                            style={{ width: '60px', marginRight: '10px' }}
-                                            disabled={item.stockQuantity === 0}
-                                        />
-                                        {item.stockQuantity === 0 && <span style={{ color: 'red' }}>Out of Stock</span>}
+                                {isRegistered ? (
+                                    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                                        <p className="font-medium">✓ You have already purchased from this event</p>
+                                        <p className="text-sm mt-1">Purchase Date: {new Date(currentRegistration?.registrationDate).toLocaleDateString()}</p>
+                                        <p className="text-sm">Status: {currentRegistration?.status}</p>
+                                        {currentRegistration?.purchasedItems && (
+                                            <div className="mt-2">
+                                                <p className="text-sm font-medium">Items Purchased:</p>
+                                                {currentRegistration.purchasedItems.map((item, index) => (
+                                                    <p key={index} className="text-sm">• {item.item.itemName} (x{item.quantity})</p>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
-                                <p style={{ fontWeight: 'bold', marginTop: '0.5rem' }}>
-                                    Total price:{' '}
-                                    ₹{event.items.reduce((sum, item) => {
-                                        const qty = merchQuantities[item._id] || 0;
-                                        const price = Number(item.price || 0);
-                                        return sum + qty * price;
-                                    }, 0).toFixed(2)}
-                                </p>
-                                <button
-                                    onClick={handlePurchase}
-                                    disabled={
-                                        registrationLoading ||
-                                        Object.values(merchQuantities).every(qty => qty === 0)
-                                    }
-                                    className="purchase-button"
-                                >
-                                    {registrationLoading ? 'Purchasing...' : 'Purchase Selected Items'}
-                                </button>
+                                ) : (
+                                    <>
+                                        {event.items.map(item => (
+                                            <div key={item._id} className="merch-item-selection" style={{ marginBottom: '1rem' }}>
+                                                <p>
+                                                    <strong>{item.itemName}</strong>{' '}
+                                                    (Price: ₹{Number(item.price || 0).toFixed(2)} · Stock: {item.stockQuantity})
+                                                </p>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max={item.stockQuantity}
+                                                    value={merchQuantities[item._id] || 0}
+                                                    onChange={(e) => handleMerchQuantityChange(item._id, e.target.value)}
+                                                    style={{ width: '60px', marginRight: '10px' }}
+                                                    disabled={item.stockQuantity === 0}
+                                                />
+                                                {item.stockQuantity === 0 && <span style={{ color: 'red' }}>Out of Stock</span>}
+                                            </div>
+                                        ))}
+                                        <p style={{ fontWeight: 'bold', marginTop: '0.5rem' }}>
+                                            Total price:{' '}
+                                            ₹{event.items.reduce((sum, item) => {
+                                                const qty = merchQuantities[item._id] || 0;
+                                                const price = Number(item.price || 0);
+                                                return sum + qty * price;
+                                            }, 0).toFixed(2)}
+                                        </p>
+                                        <button
+                                            onClick={handlePurchase}
+                                            disabled={
+                                                registrationLoading ||
+                                                Object.values(merchQuantities).every(qty => qty === 0)
+                                            }
+                                            className="purchase-button"
+                                        >
+                                            {registrationLoading ? 'Purchasing...' : 'Purchase Selected Items'}
+                                        </button>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>
@@ -377,6 +445,33 @@ const EventDetail = () => {
                     )}
                 </div>
             )}
+
+        {/* Custom Registration Form Modal */}
+        {showCustomForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Registration Form</h2>
+                        <button
+                            onClick={() => setShowCustomForm(false)}
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <CustomRegistrationForm
+                        registrationForm={event.registrationForm}
+                        onSubmit={handleCustomFormSubmit}
+                        loading={registrationLoading}
+                    />
+                    {registrationError && (
+                        <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                            {registrationError}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
         </div>
     );
 };

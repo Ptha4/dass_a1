@@ -35,7 +35,7 @@ const OrganiserDashboard = () => {
     const fetchAllEvents = useCallback(async () => {
         if (!token) return;
         try {
-            const data = await eventService.getEvents({ myDrafts: false }, token);
+            const data = await eventService.getMyEvents(token);
             setAllEvents(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error(err);

@@ -50,7 +50,7 @@ const sendEmail = async (to, subject, htmlContent) => {
 // @access  Private
 const registerEvent = asyncHandler(async (req, res) => {
     const { eventId } = req.params;
-    const { purchasedItems } = req.body; // For merch events
+    const { purchasedItems, customFormResponses } = req.body; // Add customFormResponses
 
     const event = await Event.findById(eventId);
 
@@ -161,7 +161,8 @@ const registerEvent = asyncHandler(async (req, res) => {
             event: eventId,
             purchasedItems: itemsToPurchase,
             status: 'payment_pending',
-            totalCost
+            totalCost,
+            customFormResponses: customFormResponses || {}
         });
         await registration.save();
 
@@ -186,7 +187,8 @@ const registerEvent = asyncHandler(async (req, res) => {
         registration = new Registration({
             user: req.user.id,
             event: eventId,
-            status: 'confirmed'
+            status: 'confirmed',
+            customFormResponses: customFormResponses || {}
         });
         await registration.save();
 
@@ -488,10 +490,31 @@ const approvePayment = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Check if user is registered for a specific event
+// @route   GET /api/register/:eventId/status
+// @access  Private
+const checkRegistrationStatus = asyncHandler(async (req, res) => {
+    const { eventId } = req.params;
+    const userId = req.user.id;
+
+    const registration = await Registration.findOne({ user: userId, event: eventId });
+    
+    res.json({
+        isRegistered: !!registration,
+        registration: registration ? {
+            id: registration._id,
+            status: registration.status,
+            registrationDate: registration.registrationDate,
+            customFormResponses: registration.customFormResponses
+        } : null
+    });
+});
+
 module.exports = {
     registerEvent,
     getMyTickets,
     uploadPaymentProof,
     getPendingApprovals,
-    approvePayment
+    approvePayment,
+    checkRegistrationStatus
 };

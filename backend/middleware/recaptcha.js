@@ -2,13 +2,19 @@ const axios = require('axios');
 
 // Custom reCAPTCHA verification
 const verifyRecaptcha = async (req, res, next) => {
+    console.log('reCAPTCHA middleware called');
+    console.log('Request body:', req.body);
+    
     const { recaptchaToken } = req.body;
     
     if (!recaptchaToken) {
+        console.log('No recaptchaToken found in request body');
         return res.status(400).json({
             message: 'CAPTCHA verification required. Please complete the reCAPTCHA challenge.'
         });
     }
+
+    console.log('recaptchaToken found:', recaptchaToken);
 
     // Check if it's a test token (for development)
     if (recaptchaToken.startsWith('test-token-') && process.env.RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4wifDy') {

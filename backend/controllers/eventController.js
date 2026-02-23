@@ -234,16 +234,29 @@ const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // @route   GET /api/events?search=&eventType=&eligibility=&fromDate=&toDate=&followedOnly=
 // @access  Public (optional auth for followedOnly)
 const getEvents = asyncHandler(async (req, res) => {
-    const { search, eventType, eligibility, fromDate, toDate, followedOnly, myDrafts } = req.query;
+    const { search, eventType, eligibility, fromDate, toDate, followedOnly, myDrafts, myEvents } = req.query;
+    console.log('getEvents called with query:', req.query);
+    console.log('User authenticated:', req.user ? 'Yes' : 'No');
+    if (req.user) console.log('User ID:', req.user.id);
+    
     const query = {};
 
     // Organiser's drafts only (requires auth)
     if (myDrafts === 'true' || myDrafts === true) {
+        console.log('Fetching myDrafts');
         if (req.user && req.user.id) {
             query.organizerId = req.user.id;
             query.status = 'draft';
         }
+    } else if (myEvents === 'true' || myEvents === true) {
+        // Organiser's published events only (requires auth)
+        console.log('Fetching myEvents for organizer:', req.user?.id);
+        if (req.user && req.user.id) {
+            query.organizerId = req.user.id;
+            query.status = { $ne: 'draft' };
+        }
     } else {
+        console.log('Fetching public events');
         // Public browse: exclude drafts and archived events, and events from archived/disabled organizers
         query.status = { $ne: 'draft' };
         

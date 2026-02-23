@@ -40,6 +40,7 @@ const createEvent = async (eventData, token) => {
 
 // Get all events (optional params: search, eventType, eligibility, fromDate, toDate, followedOnly)
 const getEvents = (params = {}, token = null) => {
+    console.log('getEvents called with params:', params);
     const config = token ? { headers: { 'x-auth-token': token } } : {};
     const searchParams = new URLSearchParams();
     if (params.search) searchParams.set('search', params.search);
@@ -49,9 +50,11 @@ const getEvents = (params = {}, token = null) => {
     if (params.toDate) searchParams.set('toDate', params.toDate);
     if (params.followedOnly === true) searchParams.set('followedOnly', 'true');
     if (params.myDrafts === true) searchParams.set('myDrafts', 'true');
+    if (params.myEvents === true) searchParams.set('myEvents', 'true');
     if (params.organizerId) searchParams.set('organizerId', params.organizerId);
     const qs = searchParams.toString();
     const url = qs ? `${API_URL}?${qs}` : API_URL;
+    console.log('Final URL:', url);
     return axios.get(url, config).then((res) => res.data);
 };
 
@@ -59,6 +62,13 @@ const getEvents = (params = {}, token = null) => {
 const getMyDrafts = (token) => {
     if (!token) return Promise.resolve([]);
     return getEvents({ myDrafts: true }, token);
+};
+
+// Get current user's published events (organisers only)
+const getMyEvents = (token) => {
+    console.log('getMyEvents called with token:', token ? 'Token exists' : 'No token');
+    if (!token) return Promise.resolve([]);
+    return getEvents({ myEvents: true }, token);
 };
 
 // Get single event by ID
@@ -90,13 +100,17 @@ const updateEventStatus = async (id, statusData, token) => {
 };
 
 // Register for an event or purchase merchandise
-const registerForEvent = async (eventId, purchasedItems, token) => {
+const registerForEvent = async (eventId, purchasedItems, token, customFormResponses = null) => {
     const config = {
         headers: {
             'x-auth-token': token,
         },
     };
-    const response = await axios.post(REGISTRATION_API_URL + eventId, { purchasedItems }, config);
+    const requestBody = { purchasedItems };
+    if (customFormResponses) {
+        requestBody.customFormResponses = customFormResponses;
+    }
+    const response = await axios.post(REGISTRATION_API_URL + eventId, requestBody, config);
     return response.data;
 };
 
@@ -108,6 +122,17 @@ const getMyTickets = async (token) => {
         },
     };
     const response = await axios.get(REGISTRATION_API_URL + 'my-tickets', config);
+    return response.data;
+};
+
+// Check if user is registered for a specific event
+const checkRegistrationStatus = async (eventId, token) => {
+    const config = {
+        headers: {
+            'x-auth-token': token,
+        },
+    };
+    const response = await axios.get(REGISTRATION_API_URL + eventId + '/status', config);
     return response.data;
 };
 
@@ -226,11 +251,13 @@ const eventService = {
     createEvent,
     getEvents,
     getMyDrafts,
+    getMyEvents,
     getEventById,
     updateEvent,
     updateEventStatus,
     registerForEvent,
     getMyTickets,
+    checkRegistrationStatus,
     getEventAnalytics,
     uploadPaymentProof,
     getPendingApprovals,

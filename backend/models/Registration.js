@@ -60,6 +60,11 @@ const RegistrationSchema = new mongoose.Schema({
         type: Number,
         min: 0
     },
+    // Custom form responses for event registration
+    customFormResponses: {
+        type: Object,
+        default: {}
+    },
     // Reference to the generated ticket
     ticket: {
         type: mongoose.Schema.Types.ObjectId,

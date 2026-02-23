@@ -76,10 +76,26 @@ function App() {
                     <Route path="/" element={<h1>Welcome to the Event Management System</h1>} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/login" element={<Login />} />
-                    <Route path="/dashboard" element={<DashboardRedirect />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/clubs" element={<ClubsOrganizers />} />
-                    <Route path="/clubs/:id" element={<OrganizerDetail />} />
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute>
+                            <DashboardRedirect />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/profile" element={
+                        <ProtectedRoute>
+                            <Profile />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/clubs" element={
+                        <ProtectedRoute>
+                            <ClubsOrganizers />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/clubs/:id" element={
+                        <ProtectedRoute>
+                            <OrganizerDetail />
+                        </ProtectedRoute>
+                    } />
 
                     <Route
                         path="/admin-dashboard"
@@ -113,8 +129,16 @@ function App() {
                             </ProtectedRoute>
                         }
                     />
-                    <Route path="/events" element={<EventDashboard />} />
-                    <Route path="/events/:id" element={<EventDetail />} />
+                    <Route path="/events" element={
+                        <ProtectedRoute>
+                            <EventDashboard />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/events/:id" element={
+                        <ProtectedRoute>
+                            <EventDetail />
+                        </ProtectedRoute>
+                    } />
                     <Route
                         path="/events/:id/edit"
                         element={
