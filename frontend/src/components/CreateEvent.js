@@ -23,6 +23,7 @@ const CreateEvent = () => {
         registrationFee: 0,
         eventTags: 'none',
         location: 'IIIT Hyderabad', // Added location
+        purchaseLimitPerParticipant: 0, // Event-level purchase limit
         items: [], // New state for merch items
     });
     const [customFormFields, setCustomFormFields] = useState([]); // New state for custom form fields
@@ -42,6 +43,7 @@ const CreateEvent = () => {
         registrationFee,
         eventTags,
         location, // Destructure location
+        purchaseLimitPerParticipant, // Destructure event-level purchase limit
         items, // Destructure items
     } = formData;
 
@@ -61,7 +63,7 @@ const CreateEvent = () => {
     };
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0, price: 0 }] });
+        setFormData({ ...formData, items: [...items, { itemName: '', stockQuantity: 0, price: 0, purchaseLimitPerParticipant: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -178,11 +180,13 @@ const CreateEvent = () => {
                 registrationFee: eventType === 'merch' ? undefined : (registrationFee ? Number(registrationFee) : undefined),
                 eventTags: eventTags || '', // Backend expects string and will split
                 registrationForm: customFormFields, // Backend expects registrationForm
+                purchaseLimitPerParticipant: eventType === 'merch' ? (purchaseLimitPerParticipant ? Number(purchaseLimitPerParticipant) : 0) : 0, // Event-level limit
                 items: eventType === 'merch'
                     ? items.map(item => ({
                         ...item,
                         stockQuantity: Number(item.stockQuantity),
-                        price: item.price !== undefined ? Number(item.price) : 0
+                        price: item.price !== undefined ? Number(item.price) : 0,
+                        purchaseLimitPerParticipant: item.purchaseLimitPerParticipant ? Number(item.purchaseLimitPerParticipant) : 0 // Item-level limit
                     }))
                     : [], // Send items for merch events
             };
@@ -313,10 +317,40 @@ const CreateEvent = () => {
                                     required
                                 />
                                 {errors[`price-${index}`] && <p className="error-message">{errors[`price-${index}`]}</p>}
+                                <input
+                                    type="number"
+                                    name="purchaseLimitPerParticipant"
+                                    placeholder="Limit per person (0 = no limit)"
+                                    value={item.purchaseLimitPerParticipant || 0}
+                                    onChange={(e) => handleItemChange(index, e)}
+                                    min="0"
+                                    title="Maximum quantity each participant can purchase for this item. 0 means no limit."
+                                />
+                                {errors[`purchaseLimitPerParticipant-${index}`] && <p className="error-message">{errors[`purchaseLimitPerParticipant-${index}`]}</p>}
                                 <button type="button" onClick={() => handleRemoveItem(index)}>Remove</button>
                             </div>
                         ))}
                         <button type="button" onClick={handleAddItem}>Add Item</button>
+                    </div>
+                )}
+
+                {eventType === 'merch' && (
+                    <div className="form-group">
+                        <label htmlFor="purchaseLimitPerParticipant">Event Purchase Limit per Participant</label>
+                        <input
+                            type="number"
+                            id="purchaseLimitPerParticipant"
+                            name="purchaseLimitPerParticipant"
+                            value={purchaseLimitPerParticipant || 0}
+                            onChange={onChange}
+                            min="0"
+                            placeholder="0 = no limit"
+                            title="Maximum total items each participant can purchase for this event. 0 means no limit."
+                        />
+                        <small style={{ color: '#666', display: 'block', marginTop: '0.25rem' }}>
+                            Maximum total items each participant can purchase for this event. 0 means no limit.
+                        </small>
+                        {errors.purchaseLimitPerParticipant && <p className="error-message">{errors.purchaseLimitPerParticipant}</p>}
                     </div>
                 )}
 

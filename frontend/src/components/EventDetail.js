@@ -166,9 +166,25 @@ const EventDetail = () => {
     };
 
     const handleMerchQuantityChange = (itemId, quantity) => {
+        const newQuantity = Math.max(0, parseInt(quantity, 10) || 0); // Ensure non-negative integer
+        
+        // Find the item to check purchase limits
+        const item = event.items.find(i => i._id === itemId);
+        if (!item) return;
+        
+        // Enforce item-level purchase limit
+        if (item.purchaseLimitPerParticipant > 0 && newQuantity > item.purchaseLimitPerParticipant) {
+            return; // Don't update if it exceeds the limit
+        }
+        
+        // Enforce stock limit
+        if (newQuantity > item.stockQuantity) {
+            return; // Don't update if it exceeds stock
+        }
+        
         setMerchQuantities(prev => ({
             ...prev,
-            [itemId]: Math.max(0, parseInt(quantity, 10) || 0) // Ensure non-negative integer
+            [itemId]: newQuantity
         }));
     };
 
@@ -200,6 +216,13 @@ const EventDetail = () => {
                 setRegistrationError(`Not enough stock for ${eventItem?.itemName || 'an item'}.`);
                 return;
             }
+        }
+
+        // Event-level purchase limit validation
+        const totalItems = purchasedItems.reduce((sum, item) => sum + item.quantity, 0);
+        if (event.purchaseLimitPerParticipant > 0 && totalItems > event.purchaseLimitPerParticipant) {
+            setRegistrationError(`Event purchase limit exceeded. You can purchase maximum ${event.purchaseLimitPerParticipant} items total for this event. You're trying to purchase ${totalItems} items.`);
+            return;
         }
 
         setRegistrationLoading(true);
@@ -361,6 +384,18 @@ const EventDetail = () => {
                         {isMerchEvent && event.items && event.items.length > 0 && (
                             <>
                                 <h3>Purchase Merchandise</h3>
+                                {event.purchaseLimitPerParticipant > 0 && (
+                                    <div style={{ 
+                                        backgroundColor: '#fff3cd', 
+                                        border: '1px solid #ffeaa7', 
+                                        borderRadius: '8px', 
+                                        padding: '0.75rem', 
+                                        marginBottom: '1rem',
+                                        fontSize: '0.9rem'
+                                    }}>
+                                        <strong>🛒 Event Purchase Limit:</strong> You can purchase maximum {event.purchaseLimitPerParticipant} items total for this event.
+                                    </div>
+                                )}
                                 {isRegistered ? (
                                     <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
                                         <p className="font-medium">✓ You have already purchased from this event</p>
@@ -382,17 +417,27 @@ const EventDetail = () => {
                                                 <p>
                                                     <strong>{item.itemName}</strong>{' '}
                                                     (Price: ₹{Number(item.price || 0).toFixed(2)} · Stock: {item.stockQuantity})
+                                                    {item.purchaseLimitPerParticipant > 0 && (
+                                                        <span style={{ color: '#ff6b6b', fontWeight: 'bold' }}>
+                                                            {' '}· Limit: {item.purchaseLimitPerParticipant} per person
+                                                        </span>
+                                                    )}
                                                 </p>
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    max={item.stockQuantity}
+                                                    max={Math.min(item.stockQuantity, item.purchaseLimitPerParticipant > 0 ? item.purchaseLimitPerParticipant : item.stockQuantity)}
                                                     value={merchQuantities[item._id] || 0}
                                                     onChange={(e) => handleMerchQuantityChange(item._id, e.target.value)}
                                                     style={{ width: '60px', marginRight: '10px' }}
                                                     disabled={item.stockQuantity === 0}
                                                 />
                                                 {item.stockQuantity === 0 && <span style={{ color: 'red' }}>Out of Stock</span>}
+                                                {item.purchaseLimitPerParticipant > 0 && (
+                                                    <span style={{ fontSize: '0.85rem', color: '#666' }}>
+                                                        Max {item.purchaseLimitPerParticipant} per person
+                                                    </span>
+                                                )}
                                             </div>
                                         ))}
                                         <p style={{ fontWeight: 'bold', marginTop: '0.5rem' }}>

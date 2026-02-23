@@ -15,6 +15,12 @@ const ItemSchema = new mongoose.Schema({
         type: Number,
         required: false,
         min: 0
+    },
+    // Purchase limit per participant for this specific item
+    purchaseLimitPerParticipant: {
+        type: Number,
+        min: 0,
+        default: 0 // 0 means no limit
     }
 });
 
@@ -58,6 +64,12 @@ const EventSchema = new mongoose.Schema({
     registrationFee: {
         type: Number,
         default: 0,
+    },
+    // Overall purchase limit per participant for this merch event
+    purchaseLimitPerParticipant: {
+        type: Number,
+        min: 0,
+        default: 0 // 0 means no limit
     },
     organizerId: {
         type: mongoose.Schema.Types.ObjectId,

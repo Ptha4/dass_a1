@@ -111,6 +111,33 @@ const registerEvent = asyncHandler(async (req, res) => {
         const itemsToPurchase = [];
         const updatedEventItems = [...event.items]; // Create a mutable copy
 
+        // Check existing registrations for this user to enforce purchase limits
+        const existingRegistrations = await Registration.find({
+            user: req.user.id,
+            event: eventId,
+            status: { $in: ['payment_pending', 'payment_approved', 'confirmed'] }
+        }).populate('purchasedItems.item');
+
+        // Calculate current quantities purchased by this user
+        const currentPurchases = {};
+        let totalItemsPurchased = 0;
+
+        existingRegistrations.forEach(reg => {
+            if (reg.purchasedItems && Array.isArray(reg.purchasedItems)) {
+                reg.purchasedItems.forEach(purchasedItem => {
+                    const itemName = purchasedItem.item.itemName;
+                    currentPurchases[itemName] = (currentPurchases[itemName] || 0) + purchasedItem.quantity;
+                    totalItemsPurchased += purchasedItem.quantity;
+                });
+            }
+        });
+
+        console.log('Purchase limit check:', {
+            currentPurchases,
+            totalItemsPurchased,
+            eventLimit: event.purchaseLimitPerParticipant
+        });
+
         for (const itemPurchase of purchasedItems) {
             const eventItemIndex = updatedEventItems.findIndex(ei => ei._id.toString() === itemPurchase.itemId);
 
@@ -124,6 +151,14 @@ const registerEvent = asyncHandler(async (req, res) => {
 
             if (itemPurchase.quantity <= 0) {
                 const err = new Error(`Quantity for item ${eventItem.itemName} must be at least 1.`);
+                err.status = 400;
+                throw err;
+            }
+
+            // Check item-level purchase limit
+            const currentItemQuantity = (currentPurchases[eventItem.itemName] || 0) + itemPurchase.quantity;
+            if (eventItem.purchaseLimitPerParticipant > 0 && currentItemQuantity > eventItem.purchaseLimitPerParticipant) {
+                const err = new Error(`Purchase limit exceeded for ${eventItem.itemName}. You can purchase maximum ${eventItem.purchaseLimitPerParticipant} per participant. You already have ${currentPurchases[eventItem.itemName] || 0} and are trying to add ${itemPurchase.quantity}.`);
                 err.status = 400;
                 throw err;
             }
@@ -150,6 +185,14 @@ const registerEvent = asyncHandler(async (req, res) => {
             });
             
             totalCost += itemPurchase.quantity * price;
+        }
+
+        // Check event-level purchase limit
+        const newTotalItems = totalItemsPurchased + purchasedItems.reduce((sum, item) => sum + item.quantity, 0);
+        if (event.purchaseLimitPerParticipant > 0 && newTotalItems > event.purchaseLimitPerParticipant) {
+            const err = new Error(`Event purchase limit exceeded. You can purchase maximum ${event.purchaseLimitPerParticipant} items total for this event. You already have ${totalItemsPurchased} items and are trying to add ${purchasedItems.reduce((sum, item) => sum + item.quantity, 0)} more.`);
+            err.status = 400;
+            throw err;
         }
 
         // Save updated event with decremented stock
