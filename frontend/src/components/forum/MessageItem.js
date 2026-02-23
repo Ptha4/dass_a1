@@ -64,7 +64,6 @@ const MessageItem = ({
         ? message.reactions
         : {};
     const reactionEntries = Object.entries(reactionsObj);
-    const hasReactions = reactionEntries.length > 0;
     const currentUserIdStr = currentUserId ? String(currentUserId) : '';
 
     return (

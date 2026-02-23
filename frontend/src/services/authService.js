@@ -6,8 +6,8 @@ const register = (userData) => {
     return axios.post(API_URL + 'register', userData);
 };
 
-const login = (email, password) => {
-    return axios.post(API_URL + 'login', { email, password })
+const login = (email, password, recaptchaToken) => {
+    return axios.post(API_URL + 'login', { email, password, recaptchaToken })
         .then((response) => {
             if (response.data.token) {
                 localStorage.setItem('user', JSON.stringify({

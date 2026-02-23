@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import adminService from '../services/adminService';
 import passwordResetService from '../services/passwordResetService';
 import './AdminDashboard.css';
@@ -51,7 +51,7 @@ const AdminDashboard = () => {
         loadOrganizers();
     }, []);
 
-    const loadResetRequests = (status = resetStatusFilter, page = 1) => {
+    const loadResetRequests = useCallback((status = resetStatusFilter, page = 1) => {
         setResetLoading(true);
         passwordResetService
             .getAllPasswordResetRequests({ status: status || undefined, page, limit: 20 })
@@ -64,11 +64,11 @@ const AdminDashboard = () => {
                 setResetRequests([]);
             })
             .finally(() => setResetLoading(false));
-    };
+    }, [resetStatusFilter]);
 
     useEffect(() => {
         loadResetRequests();
-    }, [resetStatusFilter]);
+    }, [resetStatusFilter, loadResetRequests]);
 
     const openProcessModal = (request, approved) => {
         setProcessModal({ request, approved, adminComments: '' });

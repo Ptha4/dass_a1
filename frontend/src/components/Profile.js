@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import authService from '../services/authService';
 import onboardingService from '../services/onboardingService';
@@ -76,7 +76,7 @@ const Profile = () => {
         load();
     }, [token]);
 
-    const loadMyResetRequests = () => {
+    const loadMyResetRequests = useCallback(() => {
         if (!user?.isOrganiser || !token) return;
         setResetRequestsLoading(true);
         passwordResetService
@@ -84,11 +84,11 @@ const Profile = () => {
             .then((data) => setMyResetRequests(data.requests || []))
             .catch(() => setMyResetRequests([]))
             .finally(() => setResetRequestsLoading(false));
-    };
+    }, [user?.isOrganiser, token]);
 
     useEffect(() => {
         if (user?.isOrganiser) loadMyResetRequests();
-    }, [user?.isOrganiser, token]);
+    }, [user?.isOrganiser, token, loadMyResetRequests]);
 
     const handlePasswordResetRequest = async (e) => {
         e.preventDefault();

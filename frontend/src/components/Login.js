@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import authService from '../services/authService';
 import { useNavigate } from 'react-router-dom';
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
-const Login = () => {
+const LoginContent = () => {
     const [formData, setFormData] = useState({
         email: '',
         password: '',
     });
     const [message, setMessage] = useState('');
+    const [captchaToken, setCaptchaToken] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+
+    const { executeRecaptcha } = useGoogleReCaptcha();
 
     const { email, password } = formData;
 
@@ -16,10 +21,54 @@ const Login = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleCaptchaVerify = async () => {
+        console.log('Starting CAPTCHA verification...');
+        const siteKey = process.env.REACT_APP_RECAPTCHA_SITE_KEY;
+        console.log('Site key:', siteKey);
+        
+        // For development with test keys or missing env var, bypass reCAPTCHA entirely
+        if (!siteKey || siteKey === '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4wifDy') {
+            console.log('Using test reCAPTCHA key or missing env var - bypassing verification for development');
+            setMessage('Using test reCAPTCHA key - bypassing verification for development');
+            setCaptchaToken('test-token-' + Date.now());
+            return;
+        }
+        
+        try {
+            if (!executeRecaptcha) {
+                console.error('executeRecaptcha is not available');
+                setMessage('reCAPTCHA not initialized. Please refresh the page.');
+                return;
+            }
+            
+            console.log('Calling executeRecaptcha...');
+            const token = await executeRecaptcha('login');
+            console.log('Token received:', token ? 'Success' : 'Failed');
+            
+            if (token) {
+                setCaptchaToken(token);
+                setMessage('CAPTCHA verified successfully!');
+            } else {
+                throw new Error('No token received from reCAPTCHA');
+            }
+        } catch (error) {
+            console.error('reCAPTCHA verification failed:', error);
+            console.error('Error details:', error.message);
+            setMessage('CAPTCHA verification failed: ' + error.message);
+        }
+    };
+
     const onSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!captchaToken) {
+            setMessage('Please complete the CAPTCHA verification');
+            return;
+        }
+        
+        setIsSubmitting(true);
         try {
-            const response = await authService.login(email, password);
+            const response = await authService.login(email, password, captchaToken);
             setMessage('Login successful!');
             const currentUser = authService.getCurrentUser(); // Get updated user info from localStorage
             if (currentUser && !currentUser.isAdmin && !currentUser.isOrganiser && !currentUser.onboardingComplete) {
@@ -33,6 +82,8 @@ const Login = () => {
             }
         } catch (error) {
             setMessage(error.response?.data?.msg || error.message || 'Login failed');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -48,10 +99,49 @@ const Login = () => {
                     <label>Password:</label>
                     <input type="password" name="password" value={password} onChange={onChange} required />
                 </div>
-                <button type="submit">Login</button>
+                
+                <div className="captcha-wrapper">
+                    <div className="captcha-container">
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-blue-800">
+                                        {captchaToken ? '✓ CAPTCHA verified successfully!' : 'Please click below to verify you are human'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button 
+                            type="button" 
+                            onClick={handleCaptchaVerify}
+                            disabled={isSubmitting}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+                        >
+                            {captchaToken ? '✓ Verified' : 'Verify I\'m Human'}
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="submit" disabled={isSubmitting || !captchaToken}>
+                    {isSubmitting ? 'Logging in...' : 'Login'}
+                </button>
             </form>
             {message && <p className="message">{message}</p>}
         </div>
+    );
+};
+
+const Login = () => {
+    return (
+        <GoogleReCaptchaProvider reCaptchaKey={process.env.REACT_APP_RECAPTCHA_SITE_KEY}>
+            <LoginContent />
+        </GoogleReCaptchaProvider>
     );
 };
 

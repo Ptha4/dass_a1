@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const http = require('http');
 const socketIo = require('socket.io');
 const auth = require('./middleware/auth');
+const { verifyRecaptcha } = require('./middleware/recaptcha');
 const eventRoutes = require('./routes/eventRoutes'); // Import event routes
 const registrationRoutes = require('./routes/registrationRoutes'); // Import registration routes
 const attendanceRoutes = require('./routes/attendanceRoutes'); // Import attendance routes
@@ -43,7 +44,7 @@ app.use('/api/forum', forumRoutes); // Use forum routes
 app.use('/api/notifications', notificationRoutes); // Use notification routes
 
 // Register Route
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {
     const { 
         firstName, 
         lastName, 
@@ -65,7 +66,10 @@ app.post('/api/auth/register', async (req, res) => {
         }
 
         // IIIT Email Validation
-        if (participantType === 'IIIT Participant' && !email.endsWith('@iiit.ac.in')) {
+        if (
+            participantType === 'IIIT Participant' &&
+            !['@iiit.ac.in','@research.iiit.ac.in','@students.iiit.ac.in'].some(domain => email.endsWith(domain))
+        ) {
             return res.status(400).json({ msg: 'IIIT Participants must use an IIIT-issued email ID' });
         }
 
@@ -120,7 +124,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Login Route
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', verifyRecaptcha, async (req, res) => {
     const { email, password } = req.body;
 
     try {
