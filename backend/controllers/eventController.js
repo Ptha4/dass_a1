@@ -346,8 +346,83 @@ const getEvents = asyncHandler(async (req, res) => {
         query.organizerId = req.query.organizerId.trim();
     }
 
-    const events = await Event.find(query).populate('organizerId', 'firstName lastName email');
-    res.json(events);
+    // Preference-based sorting for participants
+    let sortOptions = {};
+    
+    if (req.user && !req.user.isOrganiser && !req.user.isAdmin) {
+        // Get user preferences for personalized sorting
+        const user = await User.findById(req.user.id).select('selectedInterests followedClubs').lean();
+        const userInterests = user?.selectedInterests || [];
+        const followedClubIds = user?.followedClubs || [];
+        
+        console.log('User preferences for sorting:', { userInterests, followedClubIds });
+        
+        // Get events with organizer details for preference scoring
+        const events = await Event.find(query)
+            .populate('organizerId', 'firstName lastName email clubInterest')
+            .lean();
+        
+        // Calculate preference scores for each event
+        const eventsWithScores = events.map(event => {
+            let score = 0;
+            
+            // Score 1: Followed clubs (highest priority)
+            if (followedClubIds.length > 0 && event.organizerId) {
+                const organizerId = event.organizerId._id || event.organizerId;
+                if (followedClubIds.includes(organizerId.toString())) {
+                    score += 100;
+                    console.log(`Event ${event.eventName}: +100 for followed club`);
+                }
+            }
+            
+            // Score 2: Matching interests (medium priority)
+            if (userInterests.length > 0 && event.organizerId?.clubInterest) {
+                if (userInterests.includes(event.organizerId.clubInterest)) {
+                    score += 50;
+                    console.log(`Event ${event.eventName}: +50 for matching interest ${event.organizerId.clubInterest}`);
+                }
+            }
+            
+            // Score 3: Event date proximity (lower priority for upcoming events)
+            const now = new Date();
+            const eventStartDate = new Date(event.eventStartDate);
+            const daysUntilEvent = Math.ceil((eventStartDate - now) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilEvent >= 0 && daysUntilEvent <= 7) {
+                score += 25; // Events in next week
+                console.log(`Event ${event.eventName}: +25 for upcoming event (${daysUntilEvent} days)`);
+            } else if (daysUntilEvent >= 0 && daysUntilEvent <= 30) {
+                score += 10; // Events in next month
+                console.log(`Event ${event.eventName}: +10 for near future event (${daysUntilEvent} days)`);
+            }
+            
+            return { ...event, _preferenceScore: score };
+        });
+        
+        // Sort by preference score (descending), then by event start date (ascending)
+        eventsWithScores.sort((a, b) => {
+            if (b._preferenceScore !== a._preferenceScore) {
+                return b._preferenceScore - a._preferenceScore;
+            }
+            // If scores are equal, sort by event start date
+            return new Date(a.eventStartDate) - new Date(b.eventStartDate);
+        });
+        
+        console.log('Events sorted by preferences:', eventsWithScores.map(e => ({
+            name: e.eventName,
+            score: e._preferenceScore,
+            date: e.eventStartDate
+        })));
+        
+        res.json(eventsWithScores);
+    } else {
+        // Default sorting for non-participants or when no user is logged in
+        sortOptions.eventStartDate = 1; // Sort by event start date (ascending)
+        const events = await Event.find(query)
+            .populate('organizerId', 'firstName lastName email clubInterest')
+            .sort(sortOptions);
+        res.json(events);
+    }
 });
 
 // @desc    Get single event by ID

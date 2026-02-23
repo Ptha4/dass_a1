@@ -173,12 +173,60 @@ const EventDashboard = () => {
 
             {!loading && !error && (
                 <div className="events-list">
+                    {user && !user.isOrganiser && !user.isAdmin && (
+                        <div className="preference-info" style={{ 
+                            backgroundColor: '#e3f2fd', 
+                            border: '1px solid #2196f3', 
+                            borderRadius: '8px', 
+                            padding: '1rem', 
+                            marginBottom: '1rem',
+                            fontSize: '0.9rem'
+                        }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#1976d2' }}>🎯 Personalized Event Ordering</h4>
+                            <p style={{ margin: '0 0 0.5rem 0' }}>
+                                Events are ordered based on your preferences:
+                            </p>
+                            <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
+                                <li>🏆 <strong>Followed Clubs</strong> - Events from clubs you follow appear first</li>
+                                <li>🎨 <strong>Matching Interests</strong> - Events matching your interests are prioritized</li>
+                                <li>📅 <strong>Upcoming Events</strong> - Events happening soon are highlighted</li>
+                            </ul>
+                        </div>
+                    )}
+                    
                     {events.length === 0 ? (
                         <p>No events match your search or filters.</p>
                     ) : (
                         events.map((event) => (
-                            <div key={event._id} className="event-card" style={{ border: '1px solid #eee', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
-                                <h2 style={{ marginTop: 0 }}>{event.eventName}</h2>
+                            <div key={event._id} className="event-card" style={{ 
+                                border: '1px solid #eee', 
+                                borderRadius: '8px', 
+                                padding: '1rem', 
+                                marginBottom: '1rem',
+                                position: 'relative'
+                            }}>
+                                {/* Preference Score Indicator */}
+                                {user && !user.isOrganiser && !user.isAdmin && event._preferenceScore > 0 && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '0.5rem',
+                                        right: '0.5rem',
+                                        backgroundColor: '#4caf50',
+                                        color: 'white',
+                                        padding: '0.25rem 0.5rem',
+                                        borderRadius: '12px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        {event._preferenceScore >= 100 ? '🏆 Top Match' : 
+                                         event._preferenceScore >= 50 ? '🎨 Good Match' : 
+                                         event._preferenceScore >= 25 ? '📅 Coming Soon' : '⭐ Recommended'}
+                                    </div>
+                                )}
+                                
+                                <h2 style={{ marginTop: 0, paddingRight: event._preferenceScore > 0 ? '100px' : '0' }}>
+                                    {event.eventName}
+                                </h2>
                                 <p>{event.eventDescription}</p>
                                 <p>Type: {event.eventType} · Status: {event.status}</p>
                                 <p>Organizer: {event.organizerId ? (event.organizerId.firstName && event.organizerId.lastName ? `${event.organizerId.firstName} ${event.organizerId.lastName}` : event.organizerId.email) : 'N/A'}</p>
