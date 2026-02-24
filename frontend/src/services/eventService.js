@@ -199,13 +199,13 @@ const getPendingApprovals = async (token) => {
 };
 
 // Approve or reject payment
-const approvePayment = async (registrationId, approved, rejectionReason, token) => {
+const approvePayment = async (proofId, approved, rejectionReason, token) => {
     const config = {
         headers: {
             'x-auth-token': token,
         },
     };
-    const response = await axios.patch(`${REGISTRATION_API_URL}${registrationId}/approve-payment`, 
+    const response = await axios.patch(`${REGISTRATION_API_URL}payment-proof/${proofId}`, 
         { approved, rejectionReason }, config);
     return response.data;
 };

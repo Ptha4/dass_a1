@@ -31,40 +31,52 @@ const PaymentApproval = () => {
         fetchPendingApprovals();
     }, [fetchPendingApprovals]);
 
-    const handleApprove = async (registrationId) => {
-        if (!token) return;
-        setProcessingId(registrationId);
-        try {
-            await eventService.approvePayment(registrationId, true, '', token);
-            await fetchPendingApprovals();
-        } catch (err) {
-            console.error('Error approving payment:', err);
-            setError(err.response?.data?.message || 'Failed to approve payment');
-        } finally {
-            setProcessingId(null);
-        }
-    };
+    const handleApprove = async (proofId) => {
+    if (!token) return;
 
-    const handleRejectClick = (registration) => {
-        setRejectionModal(registration);
+    setProcessingId(proofId);
+
+    try {
+        await eventService.approvePayment(proofId, true, '', token);
+        await fetchPendingApprovals();
+    } catch (err) {
+        console.error('Error approving payment:', err);
+        setError(err.response?.data?.message || 'Failed to approve payment');
+    } finally {
+        setProcessingId(null);
+    }
+};
+
+    const handleRejectClick = (approval) => {
+    setRejectionModal(approval);
+    setRejectionReason('');
+};
+
+const handleReject = async () => {
+    if (!token || !rejectionModal) return;
+
+    const proofId = rejectionModal.paymentProof._id;
+
+    setProcessingId(proofId);
+
+    try {
+        await eventService.approvePayment(
+            proofId,
+            false,
+            rejectionReason,
+            token
+        );
+
+        setRejectionModal(null);
         setRejectionReason('');
-    };
-
-    const handleReject = async () => {
-        if (!token || !rejectionModal) return;
-        setProcessingId(rejectionModal._id);
-        try {
-            await eventService.approvePayment(rejectionModal._id, false, rejectionReason, token);
-            setRejectionModal(null);
-            setRejectionReason('');
-            await fetchPendingApprovals();
-        } catch (err) {
-            console.error('Error rejecting payment:', err);
-            setError(err.response?.data?.message || 'Failed to reject payment');
-        } finally {
-            setProcessingId(null);
-        }
-    };
+        await fetchPendingApprovals();
+    } catch (err) {
+        console.error('Error rejecting payment:', err);
+        setError(err.response?.data?.message || 'Failed to reject payment');
+    } finally {
+        setProcessingId(null);
+    }
+};
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleString();
@@ -118,13 +130,6 @@ const PaymentApproval = () => {
                         <div key={approval._id} className="approval-card">
                             <div className="approval-header">
                                 <div className="event-info">
-                                    console.log('=== APPROVAL OBJECT DEBUG ===');
-                                    console.log('Full approval object:', approval);
-                                    console.log('approval.eventName:', approval.eventName);
-                                    console.log('approval.event:', approval.event);
-                                    console.log('approval has eventName:', !!approval.eventName);
-                                    console.log('approval has event:', !!approval.event);
-                                    console.log('=== END APPROVAL DEBUG ===');
                                     <h4>{approval.eventName}</h4>
                                     <span className="event-type">Merchandise</span>
                                 </div>
@@ -136,9 +141,9 @@ const PaymentApproval = () => {
                             <div className="approval-content">
                                 <div className="customer-info">
                                     <h5>Customer Details</h5>
-                                    <p><strong>Name:</strong> {approval.user.firstName} {approval.user.lastName}</p>
-                                    <p><strong>Email:</strong> {approval.user.email}</p>
-                                    <p><strong>Uploaded:</strong> {formatDate(approval.paymentProof.uploadedAt)}</p>
+                                    <p><strong>Name:</strong> {approval.user?.firstName || ''} {approval.user?.lastName || ''}</p>
+                                    <p><strong>Email:</strong> {approval.user?.email || ''}</p>
+                                    <p><strong>Uploaded:</strong> {formatDate(approval.paymentProof?.uploadedAt || '')}</p>
                                 </div>
 
                                 <div className="order-info">
@@ -159,13 +164,13 @@ const PaymentApproval = () => {
 
                                 <div className="payment-proof">
                                     <h5>Payment Proof</h5>
-                                    {approval.paymentProof.proofImage && (
+                                    {approval.paymentProof?.publicUrl && (
                                         <div className="proof-image-container">
                                             <img 
-                                                src={`http://localhost:5000${approval.paymentProof.proofImage}`}
+                                                src={approval.paymentProof.publicUrl}
                                                 alt="Payment Proof"
                                                 className="proof-image"
-                                                onClick={() => window.open(`http://localhost:5000${approval.paymentProof.proofImage}`, '_blank')}
+                                                onClick={() => window.open(approval.paymentProof.publicUrl, '_blank')}
                                             />
                                             <p className="image-hint">Click to enlarge</p>
                                         </div>
@@ -175,19 +180,19 @@ const PaymentApproval = () => {
 
                             <div className="approval-actions">
                                 <button
-                                    className="btn btn-approve"
-                                    onClick={() => handleApprove(approval._id)}
-                                    disabled={processingId === approval._id}
-                                >
-                                    {processingId === approval._id ? 'Processing...' : 'Approve'}
-                                </button>
+    className="btn btn-approve"
+    onClick={() => handleApprove(approval._id)}
+    disabled={processingId === approval._id}
+>
+    {processingId === approval._id ? 'Processing...' : 'Approve'}
+</button>
                                 <button
-                                    className="btn btn-reject"
-                                    onClick={() => handleRejectClick(approval)}
-                                    disabled={processingId === approval._id}
-                                >
-                                    {processingId === approval._id ? 'Processing...' : 'Reject'}
-                                </button>
+    className="btn btn-reject"
+    onClick={() => handleRejectClick(approval)}
+    disabled={processingId === approval._id}
+>
+    {processingId === approval._id ? 'Processing...' : 'Reject'}
+</button>
                             </div>
                         </div>
                     ))}
@@ -199,7 +204,7 @@ const PaymentApproval = () => {
                     <div className="rejection-modal">
                         <h4>Reject Payment</h4>
                         <p>Event: {rejectionModal.event.eventName}</p>
-                        <p>Customer: {rejectionModal.user.firstName} {rejectionModal.user.lastName}</p>
+                        <p>Customer: {rejectionModal.user?.firstName || ''} {rejectionModal.user?.lastName || ''}</p>
                         
                         <div className="form-group">
                             <label htmlFor="rejectionReason">Rejection Reason:</label>
@@ -217,9 +222,11 @@ const PaymentApproval = () => {
                             <button
                                 className="btn btn-reject"
                                 onClick={handleReject}
-                                disabled={!rejectionReason.trim() || processingId === rejectionModal._id}
-                            >
-                                {processingId === rejectionModal._id ? 'Processing...' : 'Reject Payment'}
+disabled={
+    !rejectionReason.trim() ||
+    processingId === rejectionModal.paymentProof._id
+}                            >
+                                {processingId === rejectionModal.paymentProof._id ? 'Processing...' : 'Reject Payment'}
                             </button>
                             <button
                                 className="btn btn-cancel"

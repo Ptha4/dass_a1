@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const { v4: uuidv4 } = require('uuid'); // For unique ticket IDs
 const QRCode = require('qrcode'); // For QR code generation
 const nodemailer = require('nodemailer'); // For sending emails
+const mongoose = require('mongoose');
 
 const Event = require('../models/Event');
 const Registration = require('../models/Registration');
@@ -40,7 +41,7 @@ const sendEmail = async (to, subject, htmlContent) => {
     console.log('EMAIL_PORT:', process.env.EMAIL_PORT);
     console.log('EMAIL_SECURE:', process.env.EMAIL_SECURE);
     console.log('EMAIL_FROM:', process.env.EMAIL_FROM);
-    
+
     if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) {
         console.warn('Email not configured (EMAIL_HOST/EMAIL_USER). Skipping send.');
         console.warn('Please set up email environment variables:');
@@ -144,7 +145,7 @@ const registerEvent = asyncHandler(async (req, res) => {
 
         // Calculate current quantities purchased by this user for this event
         const currentPurchases = {};
-        
+
         existingRegistrations.forEach(reg => {
             if (reg.purchasedItems && Array.isArray(reg.purchasedItems)) {
                 reg.purchasedItems.forEach(purchasedItem => {
@@ -189,7 +190,7 @@ const registerEvent = asyncHandler(async (req, res) => {
 
             // Total cost = sum of quantity * price per item
             const price = Number(eventItem.price || 0);
-            
+
             // Decrement stock
             updatedEventItems[eventItemIndex].stockQuantity -= itemPurchase.quantity;
             itemsToPurchase.push({
@@ -201,7 +202,7 @@ const registerEvent = asyncHandler(async (req, res) => {
                 quantity: itemPurchase.quantity,
                 price: price // Price is required at this level too
             });
-            
+
             totalCost += itemPurchase.quantity * price;
         }
 
@@ -288,20 +289,20 @@ const registerEvent = asyncHandler(async (req, res) => {
         await sendEmail(userDetails.email, `Your Ticket for ${event.eventName}`, emailHtml);
     }
 
-    const responseData = { 
-        message: event.eventType === 'merch' 
-            ? 'Registration successful! Please upload payment proof to receive your ticket.' 
-            : 'Registration successful and ticket sent!', 
+    const responseData = {
+        message: event.eventType === 'merch'
+            ? 'Registration successful! Please upload payment proof to receive your ticket.'
+            : 'Registration successful and ticket sent!',
         registration: {
             ...registration.toObject(),
             _id: registration._id
         }
     };
-    
+
     if (ticket) {
         responseData.ticket = ticket;
     }
-    
+
     res.status(201).json(responseData);
 });
 
@@ -322,12 +323,12 @@ const getMyTickets = asyncHandler(async (req, res) => {
 const uploadPaymentProof = async (req, res) => {
     try {
         const registrationId = req.params.registrationId;
-        
+
         console.log('=== UPLOAD PAYMENT PROOF CONTROLLER ===');
         console.log('registrationId:', registrationId);
         console.log('req.file:', req.file);
         console.log('req.user.id:', req.user?.id);
-        
+
         if (!req.file) {
             res.status(400);
             return res.json({ message: 'No payment proof image uploaded' });
@@ -355,7 +356,7 @@ const uploadPaymentProof = async (req, res) => {
         // Check if payment proof has already been uploaded
         console.log('=== CHECKING EXISTING PAYMENT PROOF ===');
         console.log('Looking for payment proof with registrationId:', registrationId);
-        
+
         const existingProof = await PaymentProof.findOne({ registrationId });
         console.log('Existing proof found:', existingProof ? 'YES' : 'NO');
         if (existingProof) {
@@ -373,11 +374,11 @@ const uploadPaymentProof = async (req, res) => {
         // Convert image to base64 for database storage
         console.log('=== CONVERTING IMAGE TO BASE64 ===');
         console.log('Original file size:', req.file.size, 'bytes');
-        
+
         const imageBuffer = req.file.buffer;
         const base64Image = imageBuffer.toString('base64');
         const dataUrl = `data:${req.file.mimetype};base64,${base64Image}`;
-        
+
         console.log('Base64 conversion completed');
         console.log('Base64 string length:', base64Image.length, 'characters');
         console.log('Data URL length:', dataUrl.length, 'characters');
@@ -409,7 +410,7 @@ const uploadPaymentProof = async (req, res) => {
             fileName: req.file.originalname,
             status: 'pending'
         });
-        
+
         try {
             await paymentProof.save();
             console.log('Payment proof saved successfully with ID:', paymentProof._id);
@@ -421,8 +422,8 @@ const uploadPaymentProof = async (req, res) => {
                 message: saveError.message,
                 code: saveError.code
             });
-            return res.status(500).json({ 
-                message: `Failed to save payment proof: ${saveError.message}` 
+            return res.status(500).json({
+                message: `Failed to save payment proof: ${saveError.message}`
             });
         }
 
@@ -460,7 +461,7 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
     console.log('=== GET PENDING APPROVALS START ===');
     console.log('Organizer ID:', req.user.id);
     console.log('Is organizer:', req.user.isOrganiser);
-    
+
     if (!req.user.isOrganiser) {
         console.log('User is not an organizer');
         res.status(403);
@@ -482,10 +483,10 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
         status: 'pending',
         eventId: { $in: organizerEventIds }
     })
-    .populate('userId', 'firstName lastName email')
-    .populate('eventId', 'eventName eventType')
-    .populate('registrationId', 'user event totalCost purchasedItems')
-    .sort({ uploadedAt: -1 });
+        .populate('userId', 'firstName lastName email')
+        .populate('eventId', 'eventName eventType')
+        .populate('registrationId', 'user event totalCost purchasedItems')
+        .sort({ uploadedAt: -1 });
 
     console.log(`Found ${paymentProofs.length} pending payment proofs for organizer`);
 
@@ -538,7 +539,7 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
     console.log('Response data type:', typeof transformedProofs);
     console.log('Response is array:', Array.isArray(transformedProofs));
     console.log('Response length:', transformedProofs.length);
-    
+
     if (transformedProofs.length > 0) {
         console.log('First proof structure:', JSON.stringify(transformedProofs[0], null, 2));
     } else {
@@ -553,22 +554,21 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
 // @route   PATCH /api/register/:registrationId/approve-payment
 // @access  Private/Organizer
 const approvePayment = asyncHandler(async (req, res) => {
-    const registrationId = req.params.registrationId;
+    const { proofId } = req.params;
     const { approved, rejectionReason } = req.body;
 
     if (typeof approved !== 'boolean') {
         res.status(400);
-        throw new Error('Approved status must be true or false');
+        throw new Error('Approved must be true or false');
     }
 
-    // Find payment proof first
-    const paymentProof = await PaymentProof.findOne({ registrationId });
+    const paymentProof = await PaymentProof.findById(proofId);
     if (!paymentProof) {
         res.status(404);
         throw new Error('Payment proof not found');
     }
 
-    const registration = await Registration.findById(registrationId)
+    const registration = await Registration.findById(paymentProof.registrationId)
         .populate('event')
         .populate('user');
 
@@ -577,121 +577,32 @@ const approvePayment = asyncHandler(async (req, res) => {
         throw new Error('Registration not found');
     }
 
-    // Check if registration belongs to organizer's event
+    // Check organizer
     if (registration.event.organizerId.toString() !== req.user.id) {
         res.status(403);
-        throw new Error('Not authorized to approve payment for this registration');
+        throw new Error('Not authorized');
     }
 
-    // Check if payment is still pending
     if (paymentProof.status !== 'pending') {
         res.status(400);
-        throw new Error('Payment has already been processed');
+        throw new Error('Payment already processed');
     }
 
     if (approved) {
-        // Approve payment
         paymentProof.status = 'approved';
         paymentProof.reviewedBy = req.user.id;
         paymentProof.reviewedAt = new Date();
-        paymentProof.reviewNotes = 'Payment approved by organizer';
         await paymentProof.save();
 
-        // Update registration
         registration.status = 'payment_approved';
-        registration.paymentProof = {
-            proofImage: paymentProof._id,
-            uploadedAt: paymentProof.uploadedAt,
-            approvedAt: paymentProof.reviewedAt,
-            approvedBy: paymentProof.reviewedBy
-        };
-
-        // Decrement stock for each purchased item
-        for (const purchasedItem of registration.purchasedItems) {
-            const eventItem = registration.event.items.find(
-                item => item.itemName === purchasedItem.item.itemName
-            );
-            
-            if (eventItem) {
-                eventItem.stockQuantity -= purchasedItem.quantity;
-                if (eventItem.stockQuantity < 0) {
-                    eventItem.stockQuantity = 0;
-                }
-            }
-        }
-
-        await registration.event.save();
-        await registration.save();
-
-        // Generate ticket and QR code
-        const ticketId = `TICKET-${uuidv4()}`;
-        const userDetails = await User.findById(registration.user._id);
-        
-        const qrCodeContent = {
-            ticketId,
-            eventId: registration.event._id,
-            eventType: registration.event.eventType,
-            purchasedItems: registration.purchasedItems.map(item => ({ 
-                name: item.item.itemName, 
-                qty: item.quantity 
-            }))
-        };
-        
-        const qrCodeDataURL = await generateQrCodeDataURL(qrCodeContent);
-
-        const ticket = new Ticket({
-            registration: registration._id,
-            event: registration.event._id,
-            user: registration.user._id,
-            ticketId,
-            qrCodeData: qrCodeDataURL,
-            eventName: registration.event.eventName,
-            eventDate: registration.event.eventStartDate,
-            eventLocation: registration.event.location,
-            participantName: `${userDetails.firstName} ${userDetails.lastName}`,
-            participantEmail: userDetails.email,
-            purchasedItemsDetails: registration.purchasedItems.map(item => ({ 
-                itemName: item.item.itemName, 
-                quantity: item.quantity 
-            }))
-        });
-        
-        await ticket.save();
-        registration.ticket = ticket._id;
-
-        // Send confirmation email
-        const emailSubject = `Payment Approved - ${registration.event.eventName}`;
-        const emailContent = `
-            <h2>Payment Approved! 🎉</h2>
-            <p>Dear ${userDetails.firstName},</p>
-            <p>Your payment for <strong>${registration.event.eventName}</strong> has been approved.</p>
-            <p>Your ticket ID: <strong>${ticketId}</strong></p>
-            <p>You can now access your ticket with the QR code in your dashboard.</p>
-            <p>Thank you for your purchase!</p>
-        `;
-        
-        await sendEmail(userDetails.email, emailSubject, emailContent);
-
     } else {
-        // Reject payment
-        registration.status = 'payment_rejected';
-        registration.paymentProof.rejectedAt = new Date();
-        registration.paymentProof.rejectionReason = rejectionReason || 'Payment proof could not be verified';
-        registration.paymentProof.approvedAt = undefined;
-        registration.paymentProof.approvedBy = undefined;
+        paymentProof.status = 'rejected';
+        paymentProof.reviewedBy = req.user.id;
+        paymentProof.reviewedAt = new Date();
+        paymentProof.reviewNotes = rejectionReason || 'Rejected by organizer';
+        await paymentProof.save();
 
-        // Send rejection email
-        const userDetails = await User.findById(registration.user._id);
-        const emailSubject = `Payment Rejected - ${registration.event.eventName}`;
-        const emailContent = `
-            <h2>Payment Rejected</h2>
-            <p>Dear ${userDetails.firstName},</p>
-            <p>Your payment proof for <strong>${registration.event.eventName}</strong> has been rejected.</p>
-            <p>Reason: ${registration.paymentProof.rejectionReason}</p>
-            <p>Please upload a valid payment proof or contact the event organizer for assistance.</p>
-        `;
-        
-        await sendEmail(userDetails.email, emailSubject, emailContent);
+        registration.status = 'payment_rejected';
     }
 
     await registration.save();
@@ -710,7 +621,7 @@ const checkRegistrationStatus = asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
     const registration = await Registration.findOne({ user: userId, event: eventId });
-    
+
     res.json({
         isRegistered: !!registration,
         registration: registration ? {
@@ -727,7 +638,7 @@ const checkRegistrationStatus = asyncHandler(async (req, res) => {
 // @access  Private/Organizer
 const checkEventHasRegistrations = asyncHandler(async (req, res) => {
     const { id: eventId } = req.params;
-    
+
     // Verify user is the organizer of this event
     const event = await Event.findById(eventId);
     if (!event) {
@@ -735,16 +646,16 @@ const checkEventHasRegistrations = asyncHandler(async (req, res) => {
         err.status = 404;
         throw err;
     }
-    
+
     if (event.organizerId.toString() !== req.user.id) {
         const err = new Error('Not authorized. Only the event organizer can check registrations.');
         err.status = 403;
         throw err;
     }
-    
+
     // Check if any registrations exist for this event
     const registrationCount = await Registration.countDocuments({ event: eventId });
-    
+
     res.json({
         hasRegistrations: registrationCount > 0,
         registrationCount: registrationCount

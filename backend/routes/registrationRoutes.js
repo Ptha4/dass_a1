@@ -60,6 +60,6 @@ router.post('/:registrationId/payment-proof', protect, (req, res, next) => {
 
 // Organizer payment approval endpoints
 router.get('/pending-approvals', protect, getPendingApprovals);
-router.patch('/:registrationId/approve-payment', protect, approvePayment);
+router.patch('/payment-proof/:proofId',protect, approvePayment);
 
 module.exports = router;
