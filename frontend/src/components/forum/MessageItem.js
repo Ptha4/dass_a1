@@ -33,6 +33,7 @@ const MessageItem = ({
     isReplyItem,
     depth = 0
 }) => {
+    const [setShowMenu] = useState(false);
     const [showReactionPicker, setShowReactionPicker] = useState(false);
     const [editContent, setEditContent] = useState(message.content);
     const menuRef = useRef(null);
