@@ -24,9 +24,9 @@ router.get('/stats', protect, getNotificationStats);
 router.patch('/mark-read', protect, markNotificationsRead);
 router.patch('/mark-all-read', protect, markAllNotificationsRead);
 
-// Delete operations
-router.delete('/:notificationId', protect, deleteNotification);
+// Delete operations (specific route first)
 router.delete('/clear-all', protect, clearAllNotifications);
+router.delete('/:notificationId', protect, deleteNotification);
 
 // Settings
 router.get('/settings', protect, getNotificationSettings);

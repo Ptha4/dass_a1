@@ -14,6 +14,7 @@ const attendanceRoutes = require('./routes/attendanceRoutes'); // Import attenda
 const passwordResetRoutes = require('./routes/passwordResetRoutes'); // Import password reset routes
 const forumRoutes = require('./routes/forumRoutes'); // Import forum routes
 const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
+const discordRoutes = require('./routes/discordRoutes'); // Import Discord routes
 const SocketManager = require('./socket/socketManager'); // Import Socket Manager
 const path = require('path');
 
@@ -42,6 +43,7 @@ app.use('/api/attendance', attendanceRoutes); // Use attendance routes
 app.use('/api/password-reset', passwordResetRoutes); // Use password reset routes
 app.use('/api/forum', forumRoutes); // Use forum routes
 app.use('/api/notifications', notificationRoutes); // Use notification routes
+app.use('/api/discord', discordRoutes); // Use Discord routes
 
 // Register Route
 app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {

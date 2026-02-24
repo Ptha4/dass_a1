@@ -1,6 +1,84 @@
 import React from 'react';
 import MessageItem from './MessageItem';
 
+// Recursive component for replies with nested replies
+const ReplyWithNested = ({
+    message,
+    depth,
+    threadReplies,
+    expandedThreads,
+    onToggleReplies,
+    loadingThread,
+    onReply,
+    onEdit,
+    onDelete,
+    onPin,
+    onMarkAnnouncement,
+    onAddReaction,
+    onEditMessage,
+    isUserOrganizer,
+    currentUserId,
+    editingMessage,
+    onCancelEdit
+}) => {
+    const replies = threadReplies[message._id];
+    const isExpanded = expandedThreads.has(message._id);
+    const replyCount = replies ? replies.length : 0;
+
+    return (
+        <div>
+            <MessageItem
+                message={message}
+                onReply={onReply}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onPin={onPin}
+                onMarkAnnouncement={onMarkAnnouncement}
+                onAddReaction={onAddReaction}
+                onEditMessage={onEditMessage}
+                isUserOrganizer={isUserOrganizer}
+                currentUserId={currentUserId}
+                editingMessage={editingMessage}
+                onCancelEdit={onCancelEdit}
+                replyCount={replyCount}
+                onToggleReplies={onToggleReplies}
+                isThreadExpanded={isExpanded}
+                isReplyItem={true}
+                depth={depth}
+            />
+            {isExpanded && loadingThread === message._id && (
+                <div style={{ marginLeft: `${24 + depth * 28}px` }} className="pl-4 text-sm text-gray-500 mt-2">Loading replies...</div>
+            )}
+            {isExpanded && replies && replies.length > 0 && (
+                <div className="mt-2 space-y-2">
+                    {replies.map((reply) => (
+                        <ReplyWithNested
+                            key={reply._id}
+                            message={reply}
+                            depth={depth + 1}
+                            threadReplies={threadReplies}
+                            expandedThreads={expandedThreads}
+                            onToggleReplies={onToggleReplies}
+                            loadingThread={loadingThread}
+                            onReply={onReply}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onPin={onPin}
+                            onMarkAnnouncement={onMarkAnnouncement}
+                            onAddReaction={onAddReaction}
+                            onEditMessage={onEditMessage}
+                            isUserOrganizer={isUserOrganizer}
+                            currentUserId={currentUserId}
+                            editingMessage={editingMessage}
+                            onCancelEdit={onCancelEdit}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const MessageList = ({
     messages,
     onReply,
@@ -49,11 +127,16 @@ const MessageList = ({
                             isReplyItem={false}
                         />
                         {isExpanded && replies && replies.length > 0 && (
-                            <div className="thread-replies pl-2 border-l-2 border-gray-200 space-y-2">
+                            <div className="thread-replies mt-2 space-y-2">
                                 {replies.map((reply) => (
-                                    <MessageItem
+                                    <ReplyWithNested
                                         key={reply._id}
                                         message={reply}
+                                        depth={1}
+                                        threadReplies={threadReplies}
+                                        expandedThreads={expandedThreads}
+                                        onToggleReplies={onToggleReplies}
+                                        loadingThread={loadingThread}
                                         onReply={onReply}
                                         onEdit={onEdit}
                                         onDelete={onDelete}
@@ -65,7 +148,6 @@ const MessageList = ({
                                         currentUserId={currentUserId}
                                         editingMessage={editingMessage}
                                         onCancelEdit={onCancelEdit}
-                                        isReplyItem={true}
                                     />
                                 ))}
                             </div>

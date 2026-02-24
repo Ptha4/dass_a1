@@ -73,8 +73,9 @@ const getMyEvents = (token) => {
 };
 
 // Get single event by ID
-const getEventById = async (id) => {
-    const response = await axios.get(API_URL + id);
+const getEventById = async (id, token) => {
+    const config = token ? { headers: { 'x-auth-token': token } } : {};
+    const response = await axios.get(`${API_URL}${id}`, config);
     return response.data;
 };
 
@@ -248,24 +249,40 @@ const scanQRCode = async (qrData, eventId, token, scanMethod = 'camera') => {
     return response.data;
 };
 
+// Get event-specific analytics
+const getEventAnalyticsById = async (eventId, token) => {
+    const config = token ? { headers: { 'x-auth-token': token } } : {};
+    const response = await axios.get(`${API_URL}${eventId}/analytics`, config);
+    return response.data;
+};
+
+// Get event participants
+const getEventParticipants = async (eventId, token) => {
+    const config = token ? { headers: { 'x-auth-token': token } } : {};
+    const response = await axios.get(`${API_URL}${eventId}/participants`, config);
+    return response.data;
+};
+
 const eventService = {
     createEvent,
     getEvents,
-    getMyDrafts,
     getMyEvents,
-    getEventById,
+    getMyDrafts,
     updateEvent,
     updateEventStatus,
-    registerForEvent,
+    getEventById,
     getMyTickets,
     checkRegistrationStatus,
     getEventAnalytics,
+    getEventAnalyticsById,
+    getEventParticipants,
     uploadPaymentProof,
     getPendingApprovals,
     approvePayment,
     manualOverride,
     getEventAttendance,
-    scanQRCode
+    scanQRCode,
+    registerForEvent
 };
 
 export default eventService;

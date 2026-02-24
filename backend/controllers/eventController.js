@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const Event = require('../models/Event');
 const Registration = require('../models/Registration');
 const User = require('../models/User'); // Assuming User model is needed for organizer role check
+const DiscordWebhookService = require('../services/discordWebhookService');
 
 // @desc    Get organizer's events analytics
 // @route   GET /api/events/analytics
@@ -224,6 +225,25 @@ const createEvent = asyncHandler(async (req, res) => {
     });
 
     const createdEvent = await event.save();
+    
+    // Post to Discord webhook (only for published events)
+    if (createdEvent.status === 'published') {
+        try {
+            const discordService = new DiscordWebhookService();
+            
+            // Get organizer information
+            const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest');
+            
+            // Post to Discord
+            await discordService.postNewEvent(createdEvent, organizer);
+            
+            console.log('✅ Event successfully posted to Discord');
+        } catch (discordError) {
+            console.error('❌ Discord webhook failed:', discordError.message);
+            // Don't fail the event creation if Discord fails
+        }
+    }
+    
     res.status(201).json(createdEvent);
 });
 
@@ -633,8 +653,28 @@ const updateEventStatus = asyncHandler(async (req, res) => {
             // Draft -> Published
             // Published -> Ongoing (can be automatic based on date)
             // Published/Ongoing -> Completed/Closed
+            const previousStatus = event.status;
             event.status = status;
             const updatedEvent = await event.save();
+            
+            // Post to Discord webhook when event is published (status changes from draft to published)
+            if (previousStatus === 'draft' && status === 'published') {
+                try {
+                    const discordService = new DiscordWebhookService();
+                    
+                    // Get organizer information
+                    const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest');
+                    
+                    // Post to Discord
+                    await discordService.postNewEvent(updatedEvent, organizer);
+                    
+                    console.log('✅ Event successfully posted to Discord on publish');
+                } catch (discordError) {
+                    console.error('❌ Discord webhook failed on publish:', discordError.message);
+                    // Don't fail the status update if Discord fails
+                }
+            }
+            
             res.json(updatedEvent);
         } else {
             const err = new Error('Invalid status provided');
@@ -648,6 +688,172 @@ const updateEventStatus = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Get event-specific analytics
+// @route   GET /api/events/:id/analytics
+// @access  Private/Organizer
+const getEventAnalyticsById = asyncHandler(async (req, res) => {
+    const { id: eventId } = req.params;
+    
+    if (!req.user.isOrganiser) {
+        const err = new Error('Not authorized. Only organizers can access analytics.');
+        err.status = 403;
+        throw err;
+    }
+
+    // Verify organizer owns this event
+    const event = await Event.findOne({ _id: eventId, organizerId: req.user.id });
+    if (!event) {
+        const err = new Error('Event not found or access denied');
+        err.status = 404;
+        throw err;
+    }
+
+    try {
+        // Get all registrations for this event
+        const registrations = await Registration.find({ event: eventId })
+            .populate('user', 'firstName lastName email')
+            .populate('ticket');
+
+        // Calculate analytics
+        const totalRegistrations = registrations.length;
+        const confirmedRegistrations = registrations.filter(reg => 
+            reg.status === 'confirmed' || reg.status === 'payment_approved'
+        ).length;
+        const pendingPayments = registrations.filter(reg => 
+            reg.status === 'payment_pending'
+        ).length;
+        
+        // Calculate revenue
+        const totalRevenue = registrations.reduce((sum, reg) => {
+            if (reg.status === 'confirmed' || reg.status === 'payment_approved') {
+                if (event.eventType === 'merch' && reg.purchasedItems) {
+                    return sum + reg.purchasedItems.reduce((itemSum, item) => 
+                        itemSum + (item.quantity * item.price), 0
+                    );
+                } else {
+                    return sum + (event.registrationFee || 0);
+                }
+            }
+            return sum;
+        }, 0);
+
+        // Calculate attendance
+        const attendedRegistrations = registrations.filter(reg => 
+            reg.attendance === true
+        ).length;
+        
+        // Calculate team completion
+        const teamRegistrations = registrations.filter(reg => reg.teamName);
+        const teamCompletionRate = teamRegistrations.length > 0 ? 
+            Math.round((teamRegistrations.filter(reg => reg.teamComplete).length / teamRegistrations.length) * 100) : 0;
+        
+        const averageTeamSize = teamRegistrations.length > 0 ?
+            registrations.reduce((sum, reg) => sum + (reg.teamSize || 1), 0) / registrations.length : 0;
+
+        // Merchandise specific analytics
+        let merchandiseAnalytics = {};
+        if (event.eventType === 'merch') {
+            const allPurchasedItems = registrations.reduce((items, reg) => {
+                if (reg.purchasedItems) {
+                    return items.concat(reg.purchasedItems);
+                }
+                return items;
+            }, []);
+            
+            const totalItemsSold = allPurchasedItems.reduce((sum, item) => sum + item.quantity, 0);
+            const merchandiseRevenue = allPurchasedItems.reduce((sum, item) => 
+                sum + (item.quantity * item.price), 0
+            );
+            
+            // Find most popular item
+            const itemPopularity = {};
+            allPurchasedItems.forEach(item => {
+                itemPopularity[item.itemName] = (itemPopularity[item.itemName] || 0) + item.quantity;
+            });
+            
+            const mostPopularItem = Object.keys(itemPopularity).reduce((a, b) => 
+                itemPopularity[a] > itemPopularity[b] ? a : b, ''
+            );
+            
+            merchandiseAnalytics = {
+                totalItemsSold,
+                merchandiseRevenue,
+                averageOrderValue: totalRegistrations > 0 ? merchandiseRevenue / totalRegistrations : 0,
+                mostPopularItem
+            };
+        }
+
+        const analytics = {
+            totalRegistrations,
+            confirmedRegistrations,
+            pendingPayments,
+            totalRevenue,
+            totalAttended: attendedRegistrations,
+            attendanceRate: totalRegistrations > 0 ? Math.round((attendedRegistrations / totalRegistrations) * 100) : 0,
+            teamCompletionRate,
+            averageTeamSize,
+            ...merchandiseAnalytics
+        };
+
+        res.json(analytics);
+    } catch (error) {
+        console.error('Error calculating event analytics:', error);
+        const err = new Error('Failed to calculate analytics');
+        err.status = 500;
+        throw err;
+    }
+});
+
+// @desc    Get event participants
+// @route   GET /api/events/:id/participants
+// @access  Private/Organizer
+const getEventParticipants = asyncHandler(async (req, res) => {
+    const { id: eventId } = req.params;
+    
+    if (!req.user.isOrganiser) {
+        const err = new Error('Not authorized. Only organizers can access participants.');
+        err.status = 403;
+        throw err;
+    }
+
+    // Verify organizer owns this event
+    const event = await Event.findOne({ _id: eventId, organizerId: req.user.id });
+    if (!event) {
+        const err = new Error('Event not found or access denied');
+        err.status = 404;
+        throw err;
+    }
+
+    try {
+        // Get all registrations for this event with user details
+        const registrations = await Registration.find({ event: eventId })
+            .populate('user', 'firstName lastName email')
+            .populate('ticket')
+            .sort({ registrationDate: -1 });
+
+        const participants = registrations.map(reg => ({
+            _id: reg._id,
+            name: reg.user ? `${reg.user.firstName} ${reg.user.lastName}` : 'Unknown User',
+            email: reg.user ? reg.user.email : 'unknown@example.com',
+            registrationDate: reg.registrationDate,
+            paymentStatus: reg.status === 'payment_approved' ? 'paid' : 
+                           reg.status === 'payment_pending' ? 'pending' : 
+                           reg.status === 'confirmed' ? 'paid' : 'unpaid',
+            teamName: reg.teamName || 'Individual',
+            attendance: reg.attendance || false,
+            ticketId: reg.ticket ? reg.ticket.ticketId : null,
+            status: reg.status
+        }));
+
+        res.json(participants);
+    } catch (error) {
+        console.error('Error fetching participants:', error);
+        const err = new Error('Failed to fetch participants');
+        err.status = 500;
+        throw err;
+    }
+});
+
 
 module.exports = {
     createEvent,
@@ -655,5 +861,7 @@ module.exports = {
     getEventById,
     updateEvent,
     updateEventStatus,
-    getEventAnalytics
+    getEventAnalytics,
+    getEventAnalyticsById,
+    getEventParticipants
 };

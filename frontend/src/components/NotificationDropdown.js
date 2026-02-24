@@ -10,6 +10,7 @@ const NotificationDropdown = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [listExpanded, setListExpanded] = useState(false);
     const dropdownRef = useRef(null);
 
     // Load notifications and unread count
@@ -192,7 +193,11 @@ const NotificationDropdown = () => {
                             )}
                             {notifications.length > 0 && (
                                 <button
-                                    onClick={clearAll}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        clearAll();
+                                    }}
                                     className="text-sm text-red-600 hover:text-red-800"
                                 >
                                     Clear all
@@ -215,15 +220,15 @@ const NotificationDropdown = () => {
                                 <p>No notifications yet</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-gray-200">
-                                {notifications.map((notification) => {
+                            <div>
+                                {(listExpanded ? notifications : notifications.slice(0, 5)).map((notification) => {
                                     const eventId = notification.eventId?._id || notification.eventId;
                                     return (
                                     <div
                                         key={notification._id}
                                         role="button"
                                         tabIndex={0}
-                                        className={`p-4 hover:bg-gray-50 cursor-pointer ${
+                                        className={`p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-200 last:border-b-0 ${
                                             !notification.isRead ? 'bg-blue-50' : ''
                                         }`}
                                         onClick={() => {
@@ -278,8 +283,12 @@ const NotificationDropdown = () => {
                     {/* Footer */}
                     {notifications.length > 0 && (
                         <div className="p-3 border-t border-gray-200 text-center">
-                            <button className="text-sm text-blue-600 hover:text-blue-800">
-                                View all notifications
+                            <button
+                                type="button"
+                                onClick={() => setListExpanded(!listExpanded)}
+                                className="text-sm text-blue-600 hover:text-blue-800"
+                            >
+                                {listExpanded ? 'Collapse' : 'View all notifications'}
                             </button>
                         </div>
                     )}

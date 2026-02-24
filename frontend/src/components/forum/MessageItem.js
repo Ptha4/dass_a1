@@ -26,11 +26,12 @@ const MessageItem = ({
     isUserOrganizer,
     currentUserId,
     editingMessage,
-    onCancelEdit,
+                onCancelEdit,
     replyCount,
     onToggleReplies,
     isThreadExpanded,
-    isReplyItem
+    isReplyItem,
+    depth = 0
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -66,12 +67,14 @@ const MessageItem = ({
     const reactionEntries = Object.entries(reactionsObj);
     const currentUserIdStr = currentUserId ? String(currentUserId) : '';
 
+    const indentStyle = isReplyItem ? { marginLeft: `${24 + depth * 28}px` } : {};
+
     return (
         <div
+            style={indentStyle}
             className={`
-
             relative rounded-xl p-4 transition-all duration-200
-            ${isReplyItem ? 'ml-10 pl-6 border-l-2 border-gray-300 bg-gray-50 rounded-lg' : ''}
+            ${isReplyItem ? 'pl-4 border-l-2 border-gray-300 bg-gray-50 rounded-lg' : ''}
             ${message.isAnnouncement
                     ? 'bg-blue-50 border border-blue-200'
                     : message.isPinned
@@ -168,6 +171,34 @@ const MessageItem = ({
                             🗑 Delete
                         </button>
                     )}
+                    {isUserOrganizer && onPin && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); onPin(message._id, !message.isPinned); }}
+                            className={`transition text-sm p-1.5 rounded ${
+                                message.isPinned
+                                    ? 'text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700'
+                                    : 'hover:text-yellow-600 hover:bg-yellow-50'
+                            }`}
+                            title={message.isPinned ? 'Unpin' : 'Pin'}
+                        >
+                            {message.isPinned ? '📌 Unpin' : '📌 Pin'}
+                        </button>
+                    )}
+                    {isUserOrganizer && onMarkAnnouncement && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); onMarkAnnouncement(message._id, !message.isAnnouncement); }}
+                            className={`transition text-sm p-1.5 rounded ${
+                                message.isAnnouncement
+                                    ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                                    : 'hover:text-blue-600 hover:bg-blue-50'
+                            }`}
+                            title={message.isAnnouncement ? 'Remove Announcement' : 'Mark as Announcement'}
+                        >
+                            {message.isAnnouncement ? '📢 Remove' : '📢 Announce'}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -209,8 +240,8 @@ const MessageItem = ({
                 )}
             </div>
 
-            {/* Thread toggle (top-level only) */}
-            {!isReplyItem && onToggleReplies && (
+            {/* Thread toggle - show for all messages that can have replies */}
+            {onToggleReplies && (
                 <button
                     type="button"
                     onClick={() => onToggleReplies(message._id)}

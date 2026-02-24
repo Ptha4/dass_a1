@@ -5,7 +5,9 @@ const {
     getEventById,
     updateEvent,
     updateEventStatus,
-    getEventAnalytics
+    getEventAnalytics,
+    getEventAnalyticsById,
+    getEventParticipants
 } = require('../controllers/eventController');
 const { protect, optionalProtect } = require('../middleware/auth');
 const router = express.Router();
@@ -23,5 +25,11 @@ router.route('/:id')
 
 router.route('/:id/status')
     .put(protect, updateEventStatus); // Only authenticated organizers can update their event status
+
+router.route('/:id/analytics')
+    .get(protect, getEventAnalyticsById); // Only authenticated organizers can access event-specific analytics
+
+router.route('/:id/participants')
+    .get(protect, getEventParticipants); // Only authenticated organizers can access event participants
 
 module.exports = router;

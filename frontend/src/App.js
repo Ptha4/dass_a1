@@ -17,6 +17,7 @@ import ClubsOrganizers from './components/ClubsOrganizers';
 import OrganizerDetail from './components/OrganizerDetail';
 import DashboardRedirect from './components/DashboardRedirect';
 import NotificationDropdown from './components/NotificationDropdown';
+import OrganiserEventDetail from './components/OrganiserEventDetail';
 import authService from './services/authService';
 import './App.css'; // Assuming you have some basic styling
 
@@ -180,6 +181,14 @@ function App() {
                         element={
                             <ProtectedRoute roles={['organiser']}>
                                 <FormBuilder />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/organiser-event-detail/:eventId"
+                        element={
+                            <ProtectedRoute roles={['organiser']}>
+                                <OrganiserEventDetail />
                             </ProtectedRoute>
                         }
                     />

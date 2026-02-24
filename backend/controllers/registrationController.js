@@ -29,20 +29,43 @@ const generateQrCodeDataURL = async (data) => {
     }
 };
 
-// Helper function to send email
+// Helper function to send email (skips if EMAIL_HOST not configured)
 const sendEmail = async (to, subject, htmlContent) => {
+    console.log('=== EMAIL SENDING DEBUG ===');
+    console.log('To:', to);
+    console.log('Subject:', subject);
+    console.log('EMAIL_HOST:', process.env.EMAIL_HOST);
+    console.log('EMAIL_USER:', process.env.EMAIL_USER);
+    console.log('EMAIL_PORT:', process.env.EMAIL_PORT);
+    console.log('EMAIL_SECURE:', process.env.EMAIL_SECURE);
+    console.log('EMAIL_FROM:', process.env.EMAIL_FROM);
+    
+    if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) {
+        console.warn('Email not configured (EMAIL_HOST/EMAIL_USER). Skipping send.');
+        console.warn('Please set up email environment variables:');
+        console.warn('- EMAIL_HOST: SMTP server hostname');
+        console.warn('- EMAIL_USER: SMTP username');
+        console.warn('- EMAIL_PASS: SMTP password');
+        console.warn('- EMAIL_PORT: SMTP port (usually 587 or 465)');
+        console.warn('- EMAIL_SECURE: true for 465, false for other ports');
+        console.warn('- EMAIL_FROM: From email address');
+        return;
+    }
     try {
+        console.log('Attempting to send email...');
         await transporter.sendMail({
             from: process.env.EMAIL_FROM,
             to,
             subject,
             html: htmlContent,
         });
-        console.log(`Email sent to ${to}`);
+        console.log(`✅ Email sent successfully to ${to}`);
     } catch (err) {
-        console.error('Error sending email:', err);
+        console.error('❌ Error sending email:', err);
+        console.error('Error details:', err.message);
         // In a real application, you might want to log this error and potentially retry
     }
+    console.log('=== END EMAIL DEBUG ===');
 };
 
 // @desc    Register for an event or purchase merchandise
@@ -262,20 +285,20 @@ const registerEvent = asyncHandler(async (req, res) => {
         registration.ticket = ticket._id;
         await registration.save();
 
-        // Send confirmation email with ticket (commented out for now)
-        // const emailHtml = `
-        //     <h1>Event Registration Confirmation & Ticket</h1>
-        //     <p>Dear ${userDetails.firstName} ${userDetails.lastName},</p>
-        //     <p>Thank you for registering for ${event.eventName}!</p>
-        //     <p><strong>Event:</strong> ${event.eventName}</p>
-        //     <p><strong>Date:</strong> ${event.eventStartDate.toDateString()}</p>
-        //     <p><strong>Location:</strong> ${event.location}</p>
-        //     <p><strong>Ticket ID:</strong> ${ticketId}</p>
-        //     <p>Please find your QR code ticket attached or embedded below:</p>
-        //     <img src="${qrCodeDataURL}" alt="QR Code Ticket" />
-        //     <p>We look forward to seeing you!</p>
-        // `;
-        // await sendEmail(userDetails.email, `Your Ticket for ${event.eventName}`, emailHtml);
+        // Send ticket to participant via email
+        const emailHtml = `
+            <h1>Event Registration Confirmation & Ticket</h1>
+            <p>Dear ${userDetails.firstName} ${userDetails.lastName},</p>
+            <p>Thank you for registering for <strong>${event.eventName}</strong>!</p>
+            <p><strong>Event:</strong> ${event.eventName}</p>
+            <p><strong>Date:</strong> ${event.eventStartDate ? new Date(event.eventStartDate).toDateString() : 'TBD'}</p>
+            <p><strong>Location:</strong> ${event.location || 'TBD'}</p>
+            <p><strong>Ticket ID:</strong> ${ticketId}</p>
+            <p>Your QR code ticket is below. You can also view this ticket anytime in your Participation History on the dashboard.</p>
+            <img src="${qrCodeDataURL}" alt="QR Code Ticket" style="max-width: 200px; height: auto;" />
+            <p>We look forward to seeing you!</p>
+        `;
+        await sendEmail(userDetails.email, `Your Ticket for ${event.eventName}`, emailHtml);
     }
 
     const responseData = { 

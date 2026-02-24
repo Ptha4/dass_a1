@@ -314,7 +314,15 @@ const OrganiserDashboard = () => {
                                         <tbody>
                                             {analytics.recentEvents.map((event) => (
                                                 <tr key={event._id}>
-                                                    <td>{event.eventName}</td>
+                                                    <td>
+                                                        <Link 
+                                                            to={`/organiser-event-detail/${event._id}`}
+                                                            className="event-link"
+                                                            style={{ color: '#1976d2', textDecoration: 'none', fontWeight: 500 }}
+                                                        >
+                                                            {event.eventName}
+                                                        </Link>
+                                                    </td>
                                                     <td>{event.eventType}</td>
                                                     <td>
                                                         <span 
