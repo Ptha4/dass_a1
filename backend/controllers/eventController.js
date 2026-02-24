@@ -228,20 +228,60 @@ const createEvent = asyncHandler(async (req, res) => {
     
     // Post to Discord webhook (only for published events)
     if (createdEvent.status === 'published') {
+        console.log('=== DISCORD WEBHOOK INTEGRATION DEBUG ===');
+        console.log('Event Status:', createdEvent.status);
+        console.log('Event ID:', createdEvent._id);
+        console.log('Event Name:', createdEvent.eventName);
+        console.log('Discord Webhook URL:', process.env.DISCORD_WEBHOOK_URL ? 'CONFIGURED' : 'NOT CONFIGURED');
+        
         try {
-            const discordService = new DiscordWebhookService();
+            // Get organizer information with webhook URL
+            const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest discordWebhookUrl');
             
-            // Get organizer information
-            const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest');
+            if (!organizer) {
+                console.error(' Organizer not found for ID:', req.user.id);
+            } else {
+                console.log(' Organizer found:', `${organizer.firstName} ${organizer.lastName}`);
+                console.log('Organizer club interest:', organizer.clubInterest);
+                console.log('Organizer webhook URL:', organizer.discordWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+            }
+            
+            // Create Discord service with organizer's webhook URL
+            const discordService = new DiscordWebhookService(organizer.discordWebhookUrl);
+            
+            console.log('Discord service created');
+            console.log('Discord service enabled:', discordService.enabled);
             
             // Post to Discord
-            await discordService.postNewEvent(createdEvent, organizer);
+            console.log('Attempting to post event to Discord...');
+            const discordResult = await discordService.postNewEvent(createdEvent, organizer);
             
-            console.log('✅ Event successfully posted to Discord');
+            if (discordResult?.success) {
+                console.log(' Event successfully posted to Discord');
+                console.log('Discord response status:', discordResult.status);
+                console.log('Webhook type used:', discordResult.webhookType);
+            } else {
+                console.error(' Discord webhook posting failed');
+                console.error('Discord error:', discordResult?.error);
+                if (discordResult?.skipped) {
+                    console.log('(Webhook not configured - add DISCORD_WEBHOOK_URL to .env or set organizer discordWebhookUrl)');
+                }
+            }
+            
         } catch (discordError) {
-            console.error('❌ Discord webhook failed:', discordError.message);
+            console.error(' Discord webhook integration failed completely');
+            console.error('Error type:', discordError.constructor.name);
+            console.error('Error message:', discordError.message);
+            console.error('Error stack:', discordError.stack);
+            
             // Don't fail the event creation if Discord fails
+            console.log(' Event creation will continue despite Discord failure');
         }
+        
+        console.log('=== END DISCORD WEBHOOK DEBUG ===');
+    } else {
+        console.log(' Event created but not published - skipping Discord webhook');
+        console.log('Event status:', createdEvent.status);
     }
     
     res.status(201).json(createdEvent);
@@ -659,20 +699,60 @@ const updateEventStatus = asyncHandler(async (req, res) => {
             
             // Post to Discord webhook when event is published (status changes from draft to published)
             if (previousStatus === 'draft' && status === 'published') {
+                console.log('=== DISCORD WEBHOOK PUBLISH DEBUG ===');
+                console.log('Status change detected:', `${previousStatus} → ${status}`);
+                console.log('Event ID:', updatedEvent._id);
+                console.log('Event Name:', updatedEvent.eventName);
+                console.log('Discord Webhook URL:', process.env.DISCORD_WEBHOOK_URL ? 'CONFIGURED' : 'NOT CONFIGURED');
+                
                 try {
-                    const discordService = new DiscordWebhookService();
+                    // Get organizer information with webhook URL
+                    const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest discordWebhookUrl');
                     
-                    // Get organizer information
-                    const organizer = await User.findById(req.user.id).select('firstName lastName clubInterest');
+                    if (!organizer) {
+                        console.error('❌ Organizer not found for ID:', req.user.id);
+                    } else {
+                        console.log('✅ Organizer found:', `${organizer.firstName} ${organizer.lastName}`);
+                        console.log('Organizer club interest:', organizer.clubInterest);
+                        console.log('Organizer webhook URL:', organizer.discordWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+                    }
+                    
+                    // Create Discord service with organizer's webhook URL
+                    const discordService = new DiscordWebhookService(organizer.discordWebhookUrl);
+                    
+                    console.log('Discord service created for publish');
+                    console.log('Discord service enabled:', discordService.enabled);
                     
                     // Post to Discord
-                    await discordService.postNewEvent(updatedEvent, organizer);
+                    console.log('Attempting to post published event to Discord...');
+                    const discordResult = await discordService.postNewEvent(updatedEvent, organizer);
                     
-                    console.log('✅ Event successfully posted to Discord on publish');
-                } catch (discordError) {
-                    console.error('❌ Discord webhook failed on publish:', discordError.message);
-                    // Don't fail the status update if Discord fails
+                    if (discordResult?.success) {
+                        console.log('✅ Published event successfully posted to Discord');
+                        console.log('Discord response status:', discordResult.status);
+                        console.log('Webhook type used:', discordResult.webhookType);
+            } else {
+                console.error('❌ Discord webhook posting failed on publish');
+                console.error('Discord error:', discordResult?.error);
+                if (discordResult?.skipped) {
+                    console.log('(Webhook not configured - add DISCORD_WEBHOOK_URL to .env or set organizer discordWebhookUrl)');
                 }
+            }
+                    
+                } catch (discordError) {
+                    console.error('❌ Discord webhook integration failed completely on publish');
+                    console.error('Error type:', discordError.constructor.name);
+                    console.error('Error message:', discordError.message);
+                    console.error('Error stack:', discordError.stack);
+                    
+                    // Don't fail the status update if Discord fails
+                    console.log('⚠️ Event status update will continue despite Discord failure');
+                }
+                
+                console.log('=== END DISCORD PUBLISH DEBUG ===');
+            } else {
+                console.log('📝 Status updated but not draft→published - skipping Discord webhook');
+                console.log('Status change:', `${previousStatus} → ${status}`);
             }
             
             res.json(updatedEvent);

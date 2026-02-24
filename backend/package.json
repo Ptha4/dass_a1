@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "migrate:payment-proofs": "node scripts/migratePaymentProofs.js"
   },
   "keywords": [],
   "author": "",

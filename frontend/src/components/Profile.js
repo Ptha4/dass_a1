@@ -40,6 +40,8 @@ const Profile = () => {
     const [resetReason, setResetReason] = useState('');
     const [resetSubmitting, setResetSubmitting] = useState(false);
     const [resetError, setResetError] = useState(null);
+    const [discordWebhookUrl, setDiscordWebhookUrl] = useState(''); // Discord webhook URL for organizers
+
     const [resetSuccess, setResetSuccess] = useState(null);
     const [myResetRequests, setMyResetRequests] = useState([]);
     const [resetRequestsLoading, setResetRequestsLoading] = useState(false);
@@ -67,6 +69,7 @@ const Profile = () => {
                 setCollegeOrOrgName(userData.collegeOrOrgName || '');
                 setSelectedInterests(Array.isArray(userData.selectedInterests) ? userData.selectedInterests : []);
                 setFollowedClubs(Array.isArray(userData.followedClubs) ? userData.followedClubs.map(id => id.toString ? id.toString() : id) : []);
+                setDiscordWebhookUrl(userData.discordWebhookUrl || ''); // Initialize from user data
             } catch (err) {
                 setProfileError(err.response?.data?.msg || err.message || 'Failed to load profile.');
             } finally {
@@ -132,6 +135,25 @@ const Profile = () => {
         );
     };
 
+    const handleSaveDiscordWebhook = async () => {
+    if (!token) return;
+    setSaving(true);
+    setProfileError(null);
+    setProfileSuccess(null);
+    try {
+        const updated = await authService.updateProfile(
+            { discordWebhookUrl },
+            token
+        );
+        setProfile(updated);
+        setProfileSuccess('Discord webhook URL updated successfully.');
+    } catch (err) {
+        setProfileError(err.response?.data?.msg || err.message || 'Failed to update Discord webhook URL.');
+    } finally {
+        setSaving(false);
+    }
+};
+
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         if (!token) return;
@@ -140,7 +162,7 @@ const Profile = () => {
         setProfileSuccess(null);
         try {
             const updated = await authService.updateProfile(
-                { firstName, lastName, contactNumber, collegeOrOrgName, selectedInterests, followedClubs },
+                { firstName, lastName, contactNumber, collegeOrOrgName, selectedInterests, followedClubs, discordWebhookUrl },
                 token
             );
             setProfile(updated);
@@ -281,6 +303,39 @@ const Profile = () => {
             {/* Organizer: Request password reset from Admin */}
             {user.isOrganiser && (
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>Discord Webhook Configuration</h2>
+                    <p style={{ color: '#555', fontSize: '14px', marginBottom: '1rem' }}>Configure your Discord webhook URL to automatically post club events to your Discord channel.</p>
+                    <div style={{ marginBottom: '0.75rem' }}>
+                        <label>Discord webhook URL</label>
+                        <input 
+                            type="url" 
+                            value={discordWebhookUrl} 
+                            onChange={(e) => setDiscordWebhookUrl(e.target.value)} 
+                            placeholder="https://discord.com/api/webhooks/..."
+                            style={{ display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.25rem' }} 
+                        />
+                        <small style={{ display: 'block', marginTop: '0.25rem', color: '#666' }}>
+                            Enter your Discord webhook URL. Events for your club will be posted to this Discord channel.
+                        </small>
+                    </div>
+                    <button 
+                        type="button"
+                        onClick={handleSaveDiscordWebhook}
+                        disabled={saving}
+                        style={{ 
+                            padding: '0.5rem 1rem', 
+                            backgroundColor: saving ? '#ccc' : '#007bff', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px', 
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                            marginBottom: '1rem'
+                        }}
+                    >
+                        {saving ? 'Saving...' : 'Save Discord Webhook'}
+                    </button>
+                    {profileError && <p style={{ color: '#c00', marginBottom: '0.5rem' }}>{profileError}</p>}
+                    {profileSuccess && <p style={{ color: 'green', marginBottom: '0.5rem' }}>{profileSuccess}</p>}
                     <h2 style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>Password reset (organizers)</h2>
                     <p style={{ color: '#555', fontSize: '14px', marginBottom: '1rem' }}>Request a password reset from the Admin. You can have only one pending request at a time.</p>
                     {resetError && <p style={{ color: '#c00', marginBottom: '0.5rem' }}>{resetError}</p>}

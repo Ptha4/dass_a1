@@ -26,6 +26,18 @@ const UserSchema = new mongoose.Schema({
     category: { type: String }, // For organizers
     description: { type: String }, // For organizers
     clubInterest: { type: String, enum: ['cultural', 'technical', 'sports', 'others'] }, // For organizers/clubs
+    discordWebhookUrl: { 
+        type: String, 
+        validate: {
+            validator: function(v) {
+                if (!v) return true; // Optional field
+                // Basic URL validation for Discord webhooks
+                const discordWebhookRegex = /^https:\/\/discord\.com\/api\/webhooks\/\d+\/[a-zA-Z0-9_-]+$/;
+                return discordWebhookRegex.test(v);
+            },
+            message: props => `${props.value} is not a valid Discord webhook URL! Format: https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN`
+        }
+    },
     organizerPreferences: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Legacy: preferred organizers
     selectedInterests: [{ type: String, enum: ['cultural', 'technical', 'sports', 'others'] }], // For participants (onboarding)
     followedClubs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // For participants (onboarding)

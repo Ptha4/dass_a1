@@ -44,6 +44,7 @@ app.use('/api/password-reset', passwordResetRoutes); // Use password reset route
 app.use('/api/forum', forumRoutes); // Use forum routes
 app.use('/api/notifications', notificationRoutes); // Use notification routes
 app.use('/api/discord', discordRoutes); // Use Discord routes
+app.use('/api/payment-proofs', require('./routes/paymentProofRoutes')); // Use payment proof routes
 
 // Register Route
 app.post('/api/auth/register', verifyRecaptcha, async (req, res) => {

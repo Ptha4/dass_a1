@@ -1,9 +1,11 @@
 const axios = require('axios');
 
 class DiscordWebhookService {
-    constructor() {
-        this.webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-        this.enabled = !!this.webhookUrl;
+    constructor(organizerWebhookUrl = null) {
+        // Support for club-specific webhooks
+        this.organizerWebhookUrl = organizerWebhookUrl;
+        this.globalWebhookUrl = process.env.DISCORD_WEBHOOK_URL;
+        this.enabled = !!(this.organizerWebhookUrl || this.globalWebhookUrl);
     }
 
     /**
@@ -12,44 +14,108 @@ class DiscordWebhookService {
      * @param {Object} organizerInfo - Organizer information
      */
     async postNewEvent(eventData, organizerInfo) {
+        console.log('=== DISCORD WEBHOOK SERVICE DEBUG ===');
+        console.log('Club webhook URL:', this.discordWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+        console.log('Global webhook URL:', this.globalWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+        console.log('Service enabled:', this.enabled);
+        
         if (!this.enabled) {
-            console.log('Discord webhook not configured. Skipping event announcement.');
-            return;
+            console.log('⚠️ Discord webhook not configured. Skipping event announcement.');
+            console.log('To enable: Set DISCORD_WEBHOOK_URL globally or add club-specific webhook');
+            console.log('=== END DISCORD SERVICE DEBUG ===');
+            return { success: false, skipped: true, error: 'Discord webhook not configured' };
         }
 
         try {
+            console.log('🔨 Creating Discord embed for event...');
             const embed = this.createEventEmbed(eventData, organizerInfo);
+            console.log('✅ Embed created successfully');
+            console.log('Embed title:', embed.title);
+            console.log('Embed color:', embed.color);
+            console.log('Embed field count:', embed.fields?.length || 0);
+            
+            const webhookUrl = this.organizerWebhookUrl || this.globalWebhookUrl;
+            const webhookType = this.organizerWebhookUrl ? 'CLUB-SPECIFIC' : 'GLOBAL';
             
             const payload = {
                 username: 'Event System',
                 avatar_url: 'https://cdn.discordapp.com/attachments/818770932174422086/818770936812890185/logo.png',
                 embeds: [embed]
             };
+            
+            console.log('📤 Preparing to send payload to Discord...');
+            console.log('Payload size:', JSON.stringify(payload).length, 'characters');
+            console.log('Webhook type:', webhookType);
+            console.log('Webhook URL (first 50 chars):', webhookUrl.substring(0, 50) + '...');
 
-            console.log('=== DISCORD WEBHOOK DEBUG ===');
-            console.log('Webhook URL:', this.webhookUrl ? 'Configured' : 'Not configured');
-            console.log('Event:', eventData.eventName);
-            console.log('Organizer:', organizerInfo.firstName);
-
-            const response = await axios.post(this.webhookUrl, payload, {
+            console.log('🚀 Sending HTTP request to Discord...');
+            const startTime = Date.now();
+            
+            const response = await axios.post(webhookUrl, payload, {
                 headers: {
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Event-Management-System/1.0'
+                },
+                timeout: 10000 // 10 second timeout
             });
 
-            console.log('✅ Event successfully posted to Discord');
-            console.log('Discord response:', response.status);
-            return { success: true, status: response.status };
+            const endTime = Date.now();
+            const responseTime = endTime - startTime;
+            
+            console.log('✅ Discord API response received');
+            console.log('Response status:', response.status);
+            console.log('Response status text:', response.statusText);
+            console.log('Response time:', responseTime, 'ms');
+            console.log('Response headers:', response.headers);
+            
+            if (response.status >= 200 && response.status < 300) {
+                console.log('🎉 Event successfully posted to Discord!');
+                console.log('Discord message ID:', response.headers?.['x-discord-message-id'] || 'Unknown');
+                console.log('Webhook type used:', webhookType);
+            } else {
+                console.error('❌ Discord API returned error status');
+                console.error('Status:', response.status);
+                console.error('Status text:', response.statusText);
+                console.error('Response data:', response.data);
+            }
+
+            console.log('=== END DISCORD SERVICE DEBUG ===');
+            return { success: true, status: response.status, responseTime, webhookType };
 
         } catch (error) {
-            console.error('❌ Error posting to Discord:', error.message);
-            console.error('Error details:', error.response?.data);
+            console.error('❌ DISCORD WEBHOOK ERROR ===');
+            console.error('Error occurred while posting to Discord');
+            console.error('Error type:', error.constructor.name);
+            console.error('Error message:', error.message);
+            
+            if (error.code) {
+                console.error('Error code:', error.code);
+            }
+            
+            if (error.response) {
+                console.error('HTTP Status:', error.response.status);
+                console.error('HTTP Status Text:', error.response.statusText);
+                console.error('Response Data:', error.response.data);
+                console.error('Response Headers:', error.response.headers);
+            }
+            
+            if (error.request) {
+                console.error('Request made but no response received');
+                console.error('Request URL:', error.config?.url);
+                console.error('Request method:', error.config?.method);
+                console.error('Request headers:', error.config?.headers);
+            }
+            
+            console.error('Full error object:', error);
+            console.error('=== END DISCORD ERROR DEBUG ===');
             
             // Don't throw error to avoid breaking event creation
             return { 
                 success: false, 
                 error: error.message,
-                details: error.response?.data 
+                code: error.code,
+                responseStatus: error.response?.status,
+                responseData: error.response?.data
             };
         }
     }
@@ -199,20 +265,96 @@ class DiscordWebhookService {
      * Test webhook connection
      */
     async testConnection() {
+        console.log('=== DISCORD WEBHOOK TEST DEBUG ===');
+        console.log('Club webhook URL:', this.organizerWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+        console.log('Global webhook URL:', this.globalWebhookUrl ? 'CONFIGURED' : 'NOT CONFIGURED');
+        console.log('Service enabled:', this.enabled);
+        
         if (!this.enabled) {
-            return { success: false, error: 'Webhook not configured' };
+            console.log('❌ Cannot test - No Discord webhook configured');
+            console.log('To enable: Set DISCORD_WEBHOOK_URL globally or add club-specific webhook');
+            console.log('=== END DISCORD TEST DEBUG ===');
+            return { success: false, error: 'No webhook configured' };
         }
 
         try {
+            console.log('🧪 Testing Discord webhook connection...');
+            
+            const webhookUrl = this.organizerWebhookUrl || this.globalWebhookUrl;
+            const webhookType = this.organizerWebhookUrl ? 'CLUB-SPECIFIC' : 'GLOBAL';
+            
             const testPayload = {
-                username: 'Event System',
-                content: '🧪 **Webhook Test** - Discord integration is working correctly!'
+                username: 'Event System Test',
+                content: `🧪 **Webhook Test** - Discord integration is working correctly!\n\n**Webhook Type:** ${webhookType}`,
+                embeds: [{
+                    title: 'Connection Test',
+                    description: `This is a test message to verify Discord webhook connectivity.\n\n**Webhook Type:** ${webhookType}\n**Webhook URL:** ${webhookUrl.substring(0, 50)}...`,
+                    color: 0x00ff00, // Green
+                    timestamp: new Date().toISOString()
+                }]
             };
 
-            const response = await axios.post(this.webhookUrl, testPayload);
-            return { success: true, status: response.status };
+            console.log('📤 Sending test payload to Discord...');
+            console.log('Test payload size:', JSON.stringify(testPayload).length, 'characters');
+            console.log('Webhook type being tested:', webhookType);
+            
+            const startTime = Date.now();
+            
+            const response = await axios.post(webhookUrl, testPayload, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Event-Management-System/1.0-Test'
+                },
+                timeout: 10000
+            });
+
+            const endTime = Date.now();
+            const responseTime = endTime - startTime;
+
+            console.log('✅ Test response received from Discord');
+            console.log('Response status:', response.status);
+            console.log('Response status text:', response.statusText);
+            console.log('Response time:', responseTime, 'ms');
+
+            if (response.status >= 200 && response.status < 300) {
+                console.log('🎉 Discord webhook test successful!');
+                console.log('Test message should appear in your Discord channel');
+                console.log('Webhook type tested:', webhookType);
+                console.log('=== END DISCORD TEST DEBUG ===');
+                return { success: true, status: response.status, responseTime, webhookType };
+            } else {
+                console.error('❌ Discord webhook test failed');
+                console.error('Status:', response.status);
+                console.error('Status text:', response.statusText);
+                console.error('Response data:', response.data);
+                console.log('=== END DISCORD TEST DEBUG ===');
+                return { success: false, error: `HTTP ${response.status}: ${response.statusText}`, webhookType };
+            }
+
         } catch (error) {
-            return { success: false, error: error.message };
+            console.error('❌ DISCORD TEST ERROR ===');
+            console.error('Error occurred during webhook test');
+            console.error('Error type:', error.constructor.name);
+            console.error('Error message:', error.message);
+            
+            if (error.code) {
+                console.error('Error code:', error.code);
+                console.error('Error description:', this.getErrorCodeDescription(error.code));
+            }
+            
+            if (error.response) {
+                console.error('HTTP Status:', error.response.status);
+                console.error('HTTP Status Text:', error.response.statusText);
+                console.error('Response Data:', error.response.data);
+            }
+            
+            if (error.request) {
+                console.error('Request made but no response received');
+                console.error('Request timeout or network error');
+            }
+            
+            console.error('=== END DISCORD TEST ERROR ===');
+            return { success: false, error: error.message, code: error.code };
         }
     }
 
@@ -220,7 +362,46 @@ class DiscordWebhookService {
      * Check if webhook is configured
      */
     isConfigured() {
-        return this.enabled;
+        return this.enabled && (this.organizerWebhookUrl || this.globalWebhookUrl);
+    }
+
+    /**
+     * Get webhook configuration details
+     */
+    getWebhookInfo() {
+        return {
+            enabled: this.enabled,
+            hasClubWebhook: !!this.organizerWebhookUrl,
+            hasGlobalWebhook: !!this.globalWebhookUrl,
+            clubWebhookUrl: this.organizerWebhookUrl ? this.organizerWebhookUrl.substring(0, 50) + '...' : null,
+            globalWebhookUrl: this.globalWebhookUrl ? this.globalWebhookUrl.substring(0, 50) + '...' : null,
+            webhookType: this.organizerWebhookUrl ? 'CLUB-SPECIFIC' : 'GLOBAL'
+        };
+    }
+
+    /**
+     * Get error code description
+     * @param {string} errorCode - Error code from axios error
+     * @returns {string} - Human readable error description
+     */
+    getErrorCodeDescription(errorCode) {
+        const errorDescriptions = {
+            'ENOTFOUND': 'Network address not found',
+            'ECONNREFUSED': 'Connection refused by server',
+            'ETIMEDOUT': 'Connection timed out',
+            'ECONNRESET': 'Connection was reset',
+            'ECONNABORTED': 'Connection was aborted',
+            'EHOSTUNREACH': 'Host is unreachable',
+            'EPROTO': 'Protocol error',
+            'EAI_AGAIN': 'DNS lookup failed temporarily',
+            'EAI_NODATA': 'No address associated with hostname',
+            'EAI_NONAME': 'Hostname not found',
+            'EAI_BADHINTS': 'Invalid DNS hints',
+            'EAI_BADFLAGS': 'Invalid DNS flags',
+            'EAI_FAMILY': 'Unsupported address family'
+        };
+        
+        return errorDescriptions[errorCode] || `Unknown error code: ${errorCode}`;
     }
 }
 

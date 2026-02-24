@@ -118,7 +118,14 @@ const PaymentApproval = () => {
                         <div key={approval._id} className="approval-card">
                             <div className="approval-header">
                                 <div className="event-info">
-                                    <h4>{approval.event.eventName}</h4>
+                                    console.log('=== APPROVAL OBJECT DEBUG ===');
+                                    console.log('Full approval object:', approval);
+                                    console.log('approval.eventName:', approval.eventName);
+                                    console.log('approval.event:', approval.event);
+                                    console.log('approval has eventName:', !!approval.eventName);
+                                    console.log('approval has event:', !!approval.event);
+                                    console.log('=== END APPROVAL DEBUG ===');
+                                    <h4>{approval.eventName}</h4>
                                     <span className="event-type">Merchandise</span>
                                 </div>
                                 <div className="approval-status">

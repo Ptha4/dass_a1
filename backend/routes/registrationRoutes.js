@@ -13,16 +13,8 @@ const {
 } = require('../controllers/registrationController');
 const { protect } = require('../middleware/auth'); // Assuming you have an auth middleware
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/payment-proofs/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Configure multer for file uploads (memory storage for database)
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     // Accept only image files
@@ -37,7 +29,8 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+        files: 1 // Only allow one file at a time
     }
 });
 

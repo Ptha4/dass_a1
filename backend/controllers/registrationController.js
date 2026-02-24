@@ -7,6 +7,7 @@ const Event = require('../models/Event');
 const Registration = require('../models/Registration');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User'); // To populate user details for ticket
+const PaymentProof = require('../models/PaymentProof'); // For payment proof database storage
 
 // Configure Nodemailer (replace with your actual email service details)
 const transporter = nodemailer.createTransport({
@@ -141,25 +142,19 @@ const registerEvent = asyncHandler(async (req, res) => {
             status: { $in: ['payment_pending', 'payment_approved', 'confirmed'] }
         }).populate('purchasedItems.item');
 
-        // Calculate current quantities purchased by this user
+        // Calculate current quantities purchased by this user for this event
         const currentPurchases = {};
-        let totalItemsPurchased = 0;
-
+        
         existingRegistrations.forEach(reg => {
             if (reg.purchasedItems && Array.isArray(reg.purchasedItems)) {
                 reg.purchasedItems.forEach(purchasedItem => {
                     const itemName = purchasedItem.item.itemName;
                     currentPurchases[itemName] = (currentPurchases[itemName] || 0) + purchasedItem.quantity;
-                    totalItemsPurchased += purchasedItem.quantity;
                 });
             }
         });
 
-        console.log('Purchase limit check:', {
-            currentPurchases,
-            totalItemsPurchased,
-            eventLimit: event.purchaseLimitPerParticipant
-        });
+        console.log('Current item purchases:', currentPurchases);
 
         for (const itemPurchase of purchasedItems) {
             const eventItemIndex = updatedEventItems.findIndex(ei => ei._id.toString() === itemPurchase.itemId);
@@ -208,14 +203,6 @@ const registerEvent = asyncHandler(async (req, res) => {
             });
             
             totalCost += itemPurchase.quantity * price;
-        }
-
-        // Check event-level purchase limit
-        const newTotalItems = totalItemsPurchased + purchasedItems.reduce((sum, item) => sum + item.quantity, 0);
-        if (event.purchaseLimitPerParticipant > 0 && newTotalItems > event.purchaseLimitPerParticipant) {
-            const err = new Error(`Event purchase limit exceeded. You can purchase maximum ${event.purchaseLimitPerParticipant} items total for this event. You already have ${totalItemsPurchased} items and are trying to add ${purchasedItems.reduce((sum, item) => sum + item.quantity, 0)} more.`);
-            err.status = 400;
-            throw err;
         }
 
         // Save updated event with decremented stock
@@ -332,93 +319,234 @@ const getMyTickets = asyncHandler(async (req, res) => {
 // @desc    Upload payment proof for merchandise registration
 // @route   POST /api/register/:registrationId/payment-proof
 // @access  Private
-const uploadPaymentProof = asyncHandler(async (req, res) => {
-    const registrationId = req.params.registrationId;
-    
-    console.log('=== UPLOAD PAYMENT PROOF CONTROLLER ===');
-    console.log('registrationId:', registrationId);
-    console.log('req.file:', req.file);
-    console.log('req.user.id:', req.user?.id);
-    
-    if (!req.file) {
-        res.status(400);
-        throw new Error('No payment proof image uploaded');
+const uploadPaymentProof = async (req, res) => {
+    try {
+        const registrationId = req.params.registrationId;
+        
+        console.log('=== UPLOAD PAYMENT PROOF CONTROLLER ===');
+        console.log('registrationId:', registrationId);
+        console.log('req.file:', req.file);
+        console.log('req.user.id:', req.user?.id);
+        
+        if (!req.file) {
+            res.status(400);
+            return res.json({ message: 'No payment proof image uploaded' });
+        }
+
+        const registration = await Registration.findById(registrationId)
+            .populate('event');
+
+        console.log('Found registration:', registration);
+
+        if (!registration) {
+            return res.status(404).json({ message: 'Registration not found' });
+        }
+
+        // Check if registration belongs to user
+        if (registration.user.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized to upload payment proof for this registration' });
+        }
+
+        // Check if this is a merch event
+        if (registration.event.eventType !== 'merch') {
+            return res.status(400).json({ message: 'Payment proof is only required for merchandise events' });
+        }
+
+        // Check if payment proof has already been uploaded
+        console.log('=== CHECKING EXISTING PAYMENT PROOF ===');
+        console.log('Looking for payment proof with registrationId:', registrationId);
+        
+        const existingProof = await PaymentProof.findOne({ registrationId });
+        console.log('Existing proof found:', existingProof ? 'YES' : 'NO');
+        if (existingProof) {
+            console.log('Existing proof details:', {
+                id: existingProof._id,
+                status: existingProof.status,
+                uploadedAt: existingProof.uploadedAt,
+                fileName: existingProof.fileName
+            });
+            console.log('Payment proof already exists');
+            return res.status(400).json({ message: 'Payment proof has already been uploaded' });
+        }
+        console.log('=== END CHECKING EXISTING PAYMENT PROOF ===');
+
+        // Convert image to base64 for database storage
+        console.log('=== CONVERTING IMAGE TO BASE64 ===');
+        console.log('Original file size:', req.file.size, 'bytes');
+        
+        const imageBuffer = req.file.buffer;
+        const base64Image = imageBuffer.toString('base64');
+        const dataUrl = `data:${req.file.mimetype};base64,${base64Image}`;
+        
+        console.log('Base64 conversion completed');
+        console.log('Base64 string length:', base64Image.length, 'characters');
+        console.log('Data URL length:', dataUrl.length, 'characters');
+        console.log('=== END BASE64 CONVERSION ===');
+
+        // Create payment proof record in database with image data
+        console.log('=== CREATING PAYMENT PROOF OBJECT ===');
+        const paymentProof = new PaymentProof({
+            registrationId,
+            userId: req.user.id,
+            eventId: registration.event._id,
+            fileName: req.file.originalname,
+            originalName: req.file.originalname,
+            mimeType: req.file.mimetype,
+            fileSize: req.file.size,
+            filePath: dataUrl, // Store as data URL
+            publicUrl: dataUrl, // Serve as data URL
+            status: 'pending'
+        });
+        console.log('Payment proof object created successfully');
+        console.log('=== END CREATING PAYMENT PROOF OBJECT ===');
+
+        console.log('=== PAYMENT PROOF CREATION DEBUG ===');
+        console.log('Creating payment proof with data:', {
+            registrationId,
+            userId: req.user.id,
+            eventId: registration.event._id,
+            eventOrganizerId: registration.event.organizerId,
+            fileName: req.file.originalname,
+            status: 'pending'
+        });
+        
+        try {
+            await paymentProof.save();
+            console.log('Payment proof saved successfully with ID:', paymentProof._id);
+            console.log('=== END PAYMENT PROOF CREATION DEBUG ===');
+        } catch (saveError) {
+            console.error('ERROR saving payment proof:', saveError);
+            console.error('Save error details:', {
+                name: saveError.name,
+                message: saveError.message,
+                code: saveError.code
+            });
+            return res.status(500).json({ 
+                message: `Failed to save payment proof: ${saveError.message}` 
+            });
+        }
+
+        // Update registration with payment proof reference
+        registration.paymentProof = {
+            proofImage: paymentProof._id,
+            uploadedAt: new Date()
+        };
+        registration.status = 'payment_pending';
+        await registration.save();
+
+        console.log('Registration saved successfully with payment proof reference');
+
+        res.json({
+            message: 'Payment proof uploaded successfully. Waiting for approval.',
+            registration,
+            paymentProof: {
+                id: paymentProof._id,
+                fileName: paymentProof.fileName,
+                uploadedAt: paymentProof.uploadedAt,
+                status: paymentProof.status,
+                imageUrl: paymentProof.publicUrl // Include data URL for frontend display
+            }
+        });
+    } catch (error) {
+        console.error('UPLOAD PAYMENT PROOF ERROR:', error);
+        res.status(500).json({ message: 'Internal server error during payment proof upload' });
     }
-
-    const registration = await Registration.findById(registrationId)
-        .populate('event');
-
-    console.log('Found registration:', registration);
-
-    if (!registration) {
-        res.status(404);
-        throw new Error('Registration not found');
-    }
-
-    // Check if registration belongs to the user
-    if (registration.user.toString() !== req.user.id) {
-        res.status(403);
-        throw new Error('Not authorized to upload payment proof for this registration');
-    }
-
-    // Check if this is a merch event
-    if (registration.event.eventType !== 'merch') {
-        res.status(400);
-        throw new Error('Payment proof is only required for merchandise events');
-    }
-
-    // Check if payment proof has already been uploaded
-    if (registration.paymentProof?.proofImage) {
-        console.log('Payment proof already exists');
-        res.status(400);
-        throw new Error('Payment proof has already been uploaded');
-    }
-
-    // Update registration with payment proof
-    registration.paymentProof = {
-        proofImage: `/uploads/payment-proofs/${req.file.filename}`,
-        uploadedAt: new Date()
-    };
-    
-    console.log('Updating registration with payment proof:', registration.paymentProof);
-    
-    registration.status = 'payment_pending';
-    await registration.save();
-
-    console.log('Registration saved successfully');
-
-    res.json({
-        message: 'Payment proof uploaded successfully. Waiting for approval.',
-        registration
-    });
-});
+};
 
 // @desc    Get all pending payment approvals for organizer
 // @route   GET /api/register/pending-approvals
 // @access  Private/Organizer
 const getPendingApprovals = asyncHandler(async (req, res) => {
+    console.log('=== GET PENDING APPROVALS START ===');
+    console.log('Organizer ID:', req.user.id);
+    console.log('Is organizer:', req.user.isOrganiser);
+    
     if (!req.user.isOrganiser) {
+        console.log('User is not an organizer');
         res.status(403);
         throw new Error('Not authorized. Only organizers can view pending approvals');
     }
 
-    // Get all registrations for this organizer's events that have payment pending
-    const registrations = await Registration.find({
-        status: 'payment_pending',
-        'paymentProof.proofImage': { $exists: true }
-    })
-    .populate({
-        path: 'event',
-        match: { organizerId: req.user.id },
-        select: 'eventName eventType'
-    })
-    .populate('user', 'firstName lastName email')
-    .sort({ 'paymentProof.uploadedAt': -1 });
+    console.log('=== GET PENDING APPROVALS ===');
+    console.log('Organizer ID:', req.user.id);
 
-    // Filter out registrations where event doesn't belong to this organizer
-    const filteredRegistrations = registrations.filter(reg => reg.event !== null);
+    // First, get all events for this organizer
+    const Event = require('../models/Event');
+    const organizerEvents = await Event.find({ organizerId: req.user.id }).select('_id');
+    const organizerEventIds = organizerEvents.map(event => event._id);
 
-    res.json(filteredRegistrations);
+    console.log('Organizer events:', organizerEventIds.length);
+
+    // Get all payment proofs for this organizer's events that are pending
+    const paymentProofs = await PaymentProof.find({
+        status: 'pending',
+        eventId: { $in: organizerEventIds }
+    })
+    .populate('userId', 'firstName lastName email')
+    .populate('eventId', 'eventName eventType')
+    .populate('registrationId', 'user event totalCost purchasedItems')
+    .sort({ uploadedAt: -1 });
+
+    console.log(`Found ${paymentProofs.length} pending payment proofs for organizer`);
+
+    // Log details for debugging
+    paymentProofs.forEach((proof, index) => {
+        console.log(`Payment Proof ${index + 1}:`, {
+            id: proof._id,
+            status: proof.status,
+            eventId: proof.eventId,
+            registrationId: proof.registrationId,
+            userId: proof.userId,
+            uploadedAt: proof.uploadedAt
+        });
+    });
+
+    // Transform data for frontend consumption
+    const transformedProofs = paymentProofs.map(proof => ({
+        _id: proof._id,
+        status: proof.status,
+        uploadedAt: proof.uploadedAt,
+        fileName: proof.fileName,
+        originalName: proof.originalName,
+        fileSize: proof.fileSize,
+        mimeType: proof.mimeType,
+        publicUrl: proof.publicUrl,
+        eventId: proof.eventId._id,
+        eventName: proof.eventId.eventName,
+        eventType: proof.eventId.eventType,
+        userId: proof.userId._id,
+        user: proof.userId,
+        registrationId: proof.registrationId._id,
+        registration: proof.registrationId,
+        totalCost: proof.registrationId?.totalCost || 0,
+        purchasedItems: proof.registrationId?.purchasedItems || []
+    }));
+
+    console.log('Transformed payment proofs for frontend:', transformedProofs.length);
+    transformedProofs.forEach((proof, index) => {
+        console.log(`Transformed Proof ${index + 1}:`, {
+            id: proof._id,
+            eventName: proof.eventName,
+            userName: proof.user?.firstName + ' ' + proof.user?.lastName,
+            status: proof.status,
+            hasEventName: !!proof.eventName,
+            hasUser: !!proof.user
+        });
+    });
+
+    console.log('=== FINAL API RESPONSE ===');
+    console.log('Response data type:', typeof transformedProofs);
+    console.log('Response is array:', Array.isArray(transformedProofs));
+    console.log('Response length:', transformedProofs.length);
+    
+    if (transformedProofs.length > 0) {
+        console.log('First proof structure:', JSON.stringify(transformedProofs[0], null, 2));
+    } else {
+        console.log('No payment proofs found');
+    }
+    console.log('=== END API RESPONSE ===');
+
+    res.json(transformedProofs);
 });
 
 // @desc    Approve or reject payment
@@ -431,6 +559,13 @@ const approvePayment = asyncHandler(async (req, res) => {
     if (typeof approved !== 'boolean') {
         res.status(400);
         throw new Error('Approved status must be true or false');
+    }
+
+    // Find payment proof first
+    const paymentProof = await PaymentProof.findOne({ registrationId });
+    if (!paymentProof) {
+        res.status(404);
+        throw new Error('Payment proof not found');
     }
 
     const registration = await Registration.findById(registrationId)
@@ -449,17 +584,27 @@ const approvePayment = asyncHandler(async (req, res) => {
     }
 
     // Check if payment is still pending
-    if (registration.status !== 'payment_pending') {
+    if (paymentProof.status !== 'pending') {
         res.status(400);
         throw new Error('Payment has already been processed');
     }
 
     if (approved) {
         // Approve payment
+        paymentProof.status = 'approved';
+        paymentProof.reviewedBy = req.user.id;
+        paymentProof.reviewedAt = new Date();
+        paymentProof.reviewNotes = 'Payment approved by organizer';
+        await paymentProof.save();
+
+        // Update registration
         registration.status = 'payment_approved';
-        registration.paymentProof.approvedAt = new Date();
-        registration.paymentProof.approvedBy = req.user.id;
-        registration.paymentProof.rejectionReason = undefined;
+        registration.paymentProof = {
+            proofImage: paymentProof._id,
+            uploadedAt: paymentProof.uploadedAt,
+            approvedAt: paymentProof.reviewedAt,
+            approvedBy: paymentProof.reviewedBy
+        };
 
         // Decrement stock for each purchased item
         for (const purchasedItem of registration.purchasedItems) {
@@ -474,8 +619,9 @@ const approvePayment = asyncHandler(async (req, res) => {
                 }
             }
         }
-        
+
         await registration.event.save();
+        await registration.save();
 
         // Generate ticket and QR code
         const ticketId = `TICKET-${uuidv4()}`;

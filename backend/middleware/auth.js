@@ -27,3 +27,11 @@ exports.optionalProtect = function (req, res, next) {
     } catch (err) { /* ignore */ }
     next();
 };
+
+// Admin middleware: check if user is admin
+exports.requireAdmin = function (req, res, next) {
+    if (!req.user || !req.user.isAdmin) {
+        return res.status(403).json({ msg: 'Admin access required' });
+    }
+    next();
+};
