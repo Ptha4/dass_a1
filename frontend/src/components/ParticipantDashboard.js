@@ -77,7 +77,9 @@ const ParticipantDashboard = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                     <h3 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>
-                        {reg.event?.eventName || 'Event'}
+                        <Link to={reg.event?._id ? `/events/${reg.event._id}` : '#'} style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {reg.event?.eventName || 'Event'}
+                        </Link>
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', fontSize: '0.9rem' }}>
                         <p><strong>Type:</strong> {reg.event?.eventType || '—'}</p>
@@ -120,23 +122,37 @@ const ParticipantDashboard = () => {
                         <p><strong>Registration Date:</strong> {new Date(reg.registrationDate).toLocaleDateString()}</p>
                     </div>
                 </div>
-                <div style={{ marginLeft: '1rem', textAlign: 'right' }}>
+                <div style={{ marginLeft: '1rem', textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    {reg.event?._id && (
+                        <Link
+                            to={`/events/${reg.event._id}`}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                textDecoration: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.85rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            View event & discussion
+                        </Link>
+                    )}
                     {reg.ticket?.ticketId && (
                         <div style={{ marginBottom: '0.5rem' }}>
-                            <Link 
-                                to={`/ticket/${reg.ticket.ticketId}`}
-                                style={{
-                                    display: 'inline-block',
-                                    padding: '0.5rem 1rem',
-                                    backgroundColor: '#007bff',
-                                    color: 'white',
-                                    textDecoration: 'none',
-                                    borderRadius: '4px',
-                                    fontSize: '0.8rem'
-                                }}
-                            >
-                                View Ticket
-                            </Link>
+                            <div style={{
+                                display: 'inline-block',
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#f8f9fa',
+                                border: '1px solid #dee2e6',
+                                borderRadius: '4px',
+                                fontSize: '0.8rem',
+                                fontFamily: 'monospace',
+                                color: '#495057'
+                            }}>
+                                Ticket ID: {reg.ticket.ticketId}
+                            </div>
                         </div>
                     )}
                     {reg.ticket?.qrCodeData && (

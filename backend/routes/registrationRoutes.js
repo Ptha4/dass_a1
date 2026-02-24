@@ -8,7 +8,8 @@ const {
     uploadPaymentProof, 
     getPendingApprovals, 
     approvePayment,
-    checkRegistrationStatus
+    checkRegistrationStatus,
+    checkEventHasRegistrations
 } = require('../controllers/registrationController');
 const { protect } = require('../middleware/auth'); // Assuming you have an auth middleware
 
@@ -43,6 +44,7 @@ const upload = multer({
 router.post('/:eventId', protect, registerEvent);
 router.get('/my-tickets', protect, getMyTickets);
 router.get('/:eventId/status', protect, checkRegistrationStatus);
+router.get('/event/:id/has-registrations', protect, checkEventHasRegistrations);
 
 // Payment proof upload - MUST come before generic /:eventId route
 router.post('/:registrationId/payment-proof', protect, (req, res, next) => {

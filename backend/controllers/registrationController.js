@@ -553,11 +553,41 @@ const checkRegistrationStatus = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Check if any registrations exist for an event
+// @route   GET /api/register/event/:id/has-registrations
+// @access  Private/Organizer
+const checkEventHasRegistrations = asyncHandler(async (req, res) => {
+    const { id: eventId } = req.params;
+    
+    // Verify user is the organizer of this event
+    const event = await Event.findById(eventId);
+    if (!event) {
+        const err = new Error('Event not found');
+        err.status = 404;
+        throw err;
+    }
+    
+    if (event.organizerId.toString() !== req.user.id) {
+        const err = new Error('Not authorized. Only the event organizer can check registrations.');
+        err.status = 403;
+        throw err;
+    }
+    
+    // Check if any registrations exist for this event
+    const registrationCount = await Registration.countDocuments({ event: eventId });
+    
+    res.json({
+        hasRegistrations: registrationCount > 0,
+        registrationCount: registrationCount
+    });
+});
+
 module.exports = {
     registerEvent,
     getMyTickets,
     uploadPaymentProof,
     getPendingApprovals,
     approvePayment,
-    checkRegistrationStatus
+    checkRegistrationStatus,
+    checkEventHasRegistrations
 };

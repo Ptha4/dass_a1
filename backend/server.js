@@ -320,14 +320,32 @@ app.get('/api/admin/organizers', auth.protect, requireAdmin, async (req, res) =>
 app.post('/api/admin/organizers', auth.protect, requireAdmin, async (req, res) => {
     try {
         const { firstName, lastName, category, description, clubInterest } = req.body;
-        const plainPassword = crypto.randomBytes(8).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
-        const emailBase = `club-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-        const email = `${emailBase}@clubs.iiit.ac.in`;
-
-        const existing = await User.findOne({ email });
-        if (existing) {
-            return res.status(400).json({ msg: 'Generated email already exists; try again.' });
+        
+        // Generate unique org ID
+        let orgId;
+        let email;
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        do {
+            orgId = Math.random().toString(36).substring(2, 8); // Generate 6-character alphanumeric ID
+            email = `org${orgId}@clubs.iiit.ac.in`;
+            
+            // Check if email already exists
+            const existing = await User.findOne({ email });
+            
+            if (!existing) {
+                break; // Email is unique, use it
+            }
+            
+            attempts++;
+        } while (attempts < maxAttempts);
+        
+        if (attempts >= maxAttempts) {
+            return res.status(500).json({ msg: 'Failed to generate unique email after multiple attempts. Please try again.' });
         }
+        
+        const plainPassword = crypto.randomBytes(8).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(plainPassword, salt);

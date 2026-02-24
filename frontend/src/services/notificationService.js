@@ -8,7 +8,7 @@ const getAuthConfig = () => {
     const token = authService.getToken();
     return {
         headers: {
-            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token,
             'Content-Type': 'application/json'
         }
     };

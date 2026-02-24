@@ -140,7 +140,7 @@ const checkRegistrationStatus = async (eventId, token) => {
 // Get organizer's event analytics
 const getEventAnalytics = async (token) => {
     console.log('=== EVENT SERVICE ANALYTICS DEBUG ===');
-    console.log('API URL:', API_URL + 'analytics');
+    console.log('API URL:', 'http://localhost:5000/api/events/analytics');
     console.log('Token provided:', token ? 'Token exists' : 'No token');
     
     const config = {
@@ -152,8 +152,8 @@ const getEventAnalytics = async (token) => {
     console.log('Request config:', config);
     
     try {
-        console.log('Making GET request to:', API_URL + 'analytics');
-        const response = await axios.get(API_URL + 'analytics', config);
+        console.log('Making GET request to:', 'http://localhost:5000/api/events/analytics');
+        const response = await axios.get('http://localhost:5000/api/events/analytics', config);
         console.log('Analytics response received:', response);
         console.log('Analytics response data:', response.data);
         console.log('=== END EVENT SERVICE ANALYTICS DEBUG ===');
@@ -164,7 +164,7 @@ const getEventAnalytics = async (token) => {
         console.error('Error response:', error.response);
         console.error('Error status:', error.response?.status);
         console.error('Error data:', error.response?.data);
-        console.error('Request URL:', API_URL + 'analytics');
+        console.error('Request URL:', 'http://localhost:5000/api/events/analytics');
         console.error('=== END EVENT SERVICE ANALYTICS ERROR ===');
         throw error;
     }

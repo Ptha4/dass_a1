@@ -29,7 +29,7 @@ const MessageList = ({
                 const isExpanded = expandedThreads.has(message._id);
                 const replyCount = replies ? replies.length : 0;
                 return (
-                    <div key={message._id} className="space-y-2">
+                    <div key={message._id} className="py-4 border-b border-gray-200 last:border-none" >
                         <MessageItem
                             message={message}
                             onReply={onReply}
@@ -94,7 +94,7 @@ const MessageList = ({
             {messages.length === 0 && !loading && (
                 <div className="text-center py-8 text-gray-500">
                     <div className="mb-4">
-                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="mx-auto h-2 w-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
                     </div>

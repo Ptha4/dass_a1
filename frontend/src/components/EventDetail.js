@@ -26,6 +26,7 @@ const EventDetail = () => {
     const [forumAccess, setForumAccess] = useState(null); // true | false | null (loading)
     const [showCustomForm, setShowCustomForm] = useState(false); // Show custom form modal/section
     const [isRegistered, setIsRegistered] = useState(false); // Track if user is already registered
+    const [hasAnyRegistrations, setHasAnyRegistrations] = useState(false); // Track if any registrations exist for this event
 
     const currentUser = authService.getCurrentUser();
     const isOrganizer = currentUser?.isOrganiser;
@@ -81,6 +82,29 @@ const EventDetail = () => {
             checkRegistration();
         }
     }, [event, currentUser, id, isParticipant]);
+
+    // Check if any registrations exist for this event (to determine editability)
+    useEffect(() => {
+        if (event && isOrganizer) {
+            const checkAnyRegistrations = async () => {
+                try {
+                    const token = currentUser.token;
+                    // Check if any registrations exist for this event
+                    const response = await fetch(`http://localhost:5000/api/register/event/${id}/has-registrations`, {
+                        headers: {
+                            'x-auth-token': token
+                        }
+                    });
+                    const data = await response.json();
+                    setHasAnyRegistrations(data.hasRegistrations);
+                } catch (err) {
+                    console.error('Error checking registrations:', err);
+                    setHasAnyRegistrations(false);
+                }
+            };
+            checkAnyRegistrations();
+        }
+    }, [event, currentUser, id, isOrganizer]);
 
     // Check forum access when event is loaded and user is logged in
     useEffect(() => {
@@ -281,7 +305,7 @@ const EventDetail = () => {
         return null;
     }
 
-    const showEditButton = event.status === 'draft' && isOrganizer;
+    const showEditButton = event.status === 'draft' && isOrganizer && !hasAnyRegistrations;
     const showPublishButton = event.status === 'draft' && isOrganizer;
 
     const organizerName = event.organizerId
@@ -304,6 +328,11 @@ const EventDetail = () => {
             <Link to="/events" style={{ marginBottom: '1rem', display: 'inline-block' }}>← Back to events</Link>
             {showEditButton && (
                 <Link to={`/events/${id}/edit`} className="edit-event-button" style={{ marginLeft: '1rem' }}>Edit event</Link>
+            )}
+            {event.status === 'draft' && isOrganizer && hasAnyRegistrations && (
+                <span style={{ marginLeft: '1rem', color: '#666', fontSize: '0.9rem' }}>
+                    (Cannot edit: registrations exist)
+                </span>
             )}
             {showPublishButton && (
                 <>

@@ -54,12 +54,32 @@ function App() {
                     <div className="nav-links">
                         {currentUser ? (
                             <>
-                                <Link to="/dashboard">Dashboard</Link>
-                                <Link to="/events">Browse Events</Link>
-                                <Link to="/clubs">All clubs</Link>
-                                <Link to="/profile">Profile</Link>
-                                <NotificationDropdown />
-                                <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
+                                {currentUser.isAdmin ? (
+                                    <>
+                                        <Link to="/admin-dashboard">Dashboard</Link>
+                                        <Link to="/clubs">Manage Clubs/Organizers</Link>
+                                        <Link to="/admin-dashboard">Password Reset Requests</Link>
+                                        <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
+                                    </>
+                                ) : currentUser.isOrganiser ? (
+                                    <>
+                                        <Link to="/organiser-dashboard">Dashboard</Link>
+                                        <Link to="/events">Browse Events</Link>
+                                        <Link to="/clubs">All clubs</Link>
+                                        <Link to="/profile">Profile</Link>
+                                        <NotificationDropdown />
+                                        <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Link to="/participant-dashboard">Dashboard</Link>
+                                        <Link to="/events">Browse Events</Link>
+                                        <Link to="/clubs">All clubs</Link>
+                                        <Link to="/profile">Profile</Link>
+                                        <NotificationDropdown />
+                                        <button type="button" onClick={handleLogout} className="nav-logout">Logout</button>
+                                    </>
+                                )}
                             </>
                         ) : (
                             <>

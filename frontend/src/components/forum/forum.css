@@ -24,9 +24,12 @@
 }
 
 /* User Avatars */
-.message-item .w-10.h-10 {
+.message-item .avatar-circle {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.12);
 }
 
 /* Message Actions Dropdown */

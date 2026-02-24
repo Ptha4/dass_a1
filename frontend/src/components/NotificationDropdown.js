@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import notificationService from '../services/notificationService';
 import socketService from '../services/socketService';
 
 const NotificationDropdown = () => {
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
@@ -95,8 +97,8 @@ const NotificationDropdown = () => {
 
     // Get notification text based on type
     const getNotificationText = (notification) => {
-        const { senderName, type } = notification;
-        
+        const senderName = notification.senderName || 'Someone';
+        const type = notification.type || 'NEW_MESSAGE';
         switch (type) {
             case 'NEW_MESSAGE':
                 return `${senderName} posted a message`;
@@ -214,13 +216,23 @@ const NotificationDropdown = () => {
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-200">
-                                {notifications.map((notification) => (
+                                {notifications.map((notification) => {
+                                    const eventId = notification.eventId?._id || notification.eventId;
+                                    return (
                                     <div
                                         key={notification._id}
+                                        role="button"
+                                        tabIndex={0}
                                         className={`p-4 hover:bg-gray-50 cursor-pointer ${
                                             !notification.isRead ? 'bg-blue-50' : ''
                                         }`}
-                                        onClick={() => markAsRead([notification._id])}
+                                        onClick={() => {
+                                            markAsRead([notification._id]);
+                                            if (eventId) {
+                                                setIsOpen(false);
+                                                navigate(`/events/${eventId}`);
+                                            }
+                                        }}
                                     >
                                         <div className="flex items-start space-x-3">
                                             <div className="flex-shrink-0 text-2xl">
@@ -236,7 +248,12 @@ const NotificationDropdown = () => {
                                                     </p>
                                                 )}
                                                 <p className="text-xs text-gray-400 mt-1">
-                                                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                                                    {(() => {
+                                                        const d = notification.createdAt ? new Date(notification.createdAt) : null;
+                                                        return d && !isNaN(d)
+                                                            ? formatDistanceToNow(d, { addSuffix: true })
+                                                            : 'Just now';
+                                                    })()}
                                                 </p>
                                             </div>
                                             <button
@@ -252,7 +269,8 @@ const NotificationDropdown = () => {
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

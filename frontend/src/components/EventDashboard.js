@@ -206,15 +206,8 @@ const EventDashboard = () => {
                             marginBottom: '1rem',
                             fontSize: '0.9rem'
                         }}>
-                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#1976d2' }}>🎯 Personalized Event Ordering</h4>
-                            <p style={{ margin: '0 0 0.5rem 0' }}>
-                                Events are ordered based on your preferences:
-                            </p>
-                            <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
-                                <li> <strong>Followed Clubs</strong> - Events from clubs you follow appear first</li>
-                                <li> <strong>Matching Interests</strong> - Events matching your interests are prioritized</li>
-                                <li><strong>Upcoming Events</strong> - Events happening soon are highlighted</li>
-                            </ul>
+                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#1976d2' }}> Personalized Event Ordering</h4>
+                            
                         </div>
                     )}
                     
@@ -254,8 +247,8 @@ const EventDashboard = () => {
                                 <p>{event.eventDescription}</p>
                                 <p>Type: {event.eventType} · Status: {event.status}</p>
                                 <p>Organizer: {event.organizerId ? (event.organizerId.firstName && event.organizerId.lastName ? `${event.organizerId.firstName} ${event.organizerId.lastName}` : event.organizerId.email) : 'N/A'}</p>
-                                <p>Starts: {new Date(event.eventStartDate).toLocaleDateString()} · Ends: {new Date(event.eventEndDate).toLocaleDateString()}</p>
-                                <p>Registration deadline: {new Date(event.registrationDeadline).toLocaleDateString()}</p>
+                                <p>Starts: {event.eventStartDate ? new Date(event.eventStartDate).toLocaleDateString() : 'N/A'} · Ends: {event.eventEndDate ? new Date(event.eventEndDate).toLocaleDateString() : 'N/A'}</p>
+                                <p>Registration deadline: {event.registrationDeadline ? new Date(event.registrationDeadline).toLocaleDateString() : 'N/A'}</p>
                                 <Link to={`/events/${event._id}`}>View Details</Link>
                             </div>
                         ))

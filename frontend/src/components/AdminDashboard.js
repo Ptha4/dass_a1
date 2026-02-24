@@ -21,8 +21,6 @@ const AdminDashboard = () => {
     const [processModal, setProcessModal] = useState(null); // { request, approved, adminComments }
     const [processSubmitting, setProcessSubmitting] = useState(false);
     const [newPasswordModal, setNewPasswordModal] = useState(null); // { organizerName, clubName, newPassword }
-    const [historyOrganizer, setHistoryOrganizer] = useState(null); // { organizerId, organizerName } -> show history
-    const [resetHistory, setResetHistory] = useState(null);
 
     const [form, setForm] = useState({
         firstName: '',
@@ -95,20 +93,6 @@ const AdminDashboard = () => {
             })
             .catch((err) => setError(err.response?.data?.message || err.message || 'Failed to process request'))
             .finally(() => setProcessSubmitting(false));
-    };
-
-    const loadOrganizerHistory = (organizerId) => {
-        passwordResetService
-            .getOrganizerResetHistory(organizerId)
-            .then((data) => setResetHistory(data))
-            .catch((err) => setError(err.response?.data?.message || err.message || 'Failed to load history'));
-    };
-
-    const openHistory = (req) => {
-        const organizerId = req.organizerId?._id || req.organizerId;
-        const name = req.organizerId ? [req.organizerId.firstName, req.organizerId.lastName].filter(Boolean).join(' ') : 'Organizer';
-        setHistoryOrganizer({ organizerId, organizerName: name });
-        loadOrganizerHistory(organizerId);
     };
 
     const handleAddSubmit = (e) => {
@@ -398,7 +382,6 @@ const AdminDashboard = () => {
                                                         <button type="button" className="btn-sm btn-danger" onClick={() => openProcessModal(req, false)}>Reject</button>
                                                     </>
                                                 )}
-                                                <button type="button" className="btn-sm" onClick={() => openHistory(req)} title="View history">History</button>
                                             </td>
                                         </tr>
                                     );
@@ -460,40 +443,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* Reset history modal */}
-            {historyOrganizer && (
-                <div className="credentials-modal" role="dialog" aria-labelledby="history-title">
-                    <div className="credentials-box" style={{ maxWidth: 560, maxHeight: '80vh', overflow: 'auto' }}>
-                        <h3 id="history-title">Password reset history – {historyOrganizer.organizerName}</h3>
-                        {!resetHistory ? (
-                            <p>Loading…</p>
-                        ) : (
-                            <div>
-                                {resetHistory.resetHistory && resetHistory.resetHistory.length > 0 ? (
-                                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                                        {resetHistory.resetHistory.map((item, idx) => (
-                                            <li key={idx} style={{ padding: '12px', border: '1px solid #eee', borderRadius: 6, marginBottom: 8, background: '#fafafa' }}>
-                                                <strong>{item.clubName}</strong>
-                                                <span style={{ marginLeft: 8, padding: '2px 6px', borderRadius: 4, fontSize: 12, textTransform: 'capitalize', background: item.status === 'approved' ? '#d4edda' : item.status === 'rejected' ? '#f8d7da' : '#fff3cd' }}>{item.status}</span>
-                                                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#555' }}>{new Date(item.dateOfRequest).toLocaleString()}</p>
-                                                <p style={{ margin: '4px 0 0', fontSize: 13 }}>{item.reason}</p>
-                                                {item.adminComments && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>Admin: {item.adminComments}</p>}
-                                                {item.processedAt && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>Processed {new Date(item.processedAt).toLocaleString()}</p>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p>No reset history for this organizer.</p>
-                                )}
-                            </div>
-                        )}
-                        <div className="form-actions" style={{ marginTop: 16 }}>
-                            <button type="button" className="btn-secondary" onClick={() => { setHistoryOrganizer(null); setResetHistory(null); }}>Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+            </div>
     );
 };
 
